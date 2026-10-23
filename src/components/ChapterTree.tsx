@@ -92,7 +92,13 @@ export default function ChapterTree() {
         data-nav-switch
         onClick={() => !isRenaming && open(chapter.id)}
         onDoubleClick={() => startRename('chapter', chapter.id, chapter.title)}
-        onKeyDown={(event) => event.key === 'Enter' && open(chapter.id)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') open(chapter.id)
+          if (event.key === 'F2') {
+            event.preventDefault()
+            startRename('chapter', chapter.id, chapter.title)
+          }
+        }}
       >
         <span className={cx('status-dot', chapter.status)} title={statusLabel(chapter.status)} />
         {isRenaming ? (
@@ -189,6 +195,12 @@ export default function ChapterTree() {
                     style={{ width: 18, height: 22 }}
                     title={`${isCollapsed ? '展开' : '收起'}${volume.title}`}
                     aria-expanded={!isCollapsed}
+                    onKeyDown={(event) => {
+                      if (event.key === 'F2') {
+                        event.preventDefault()
+                        startRename('volume', volume.id, volume.title)
+                      }
+                    }}
                     onClick={() => setCollapsed((state) => ({ ...state, [volume.id]: !state[volume.id] }))}
                   >
                     <ChevronDown

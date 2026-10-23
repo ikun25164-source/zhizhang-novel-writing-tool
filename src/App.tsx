@@ -42,12 +42,25 @@ export default function App() {
 
   useEffect(() => {
     const root = document.documentElement
+    // 键盘有两种实现：压小 WebView（adjustResize，innerHeight 直接掉）或盖在上面（只有 visualViewport 掉）。
+    // 只看 visualViewport 差值的话，前者会被判成「没弹键盘」，所以两种都算，基准高度随尺寸变化重置。
+    let baseHeight = window.innerHeight
+    let baseWidth = window.innerWidth
     const sync = () => {
       const viewport = window.visualViewport
-      const keyboard = Math.max(0, window.innerHeight - (viewport ? viewport.height + viewport.offsetTop : window.innerHeight))
-      root.style.setProperty('--kb-inset', `${Math.round(keyboard)}px`)
+      const visible = viewport ? viewport.height + viewport.offsetTop : window.innerHeight
+      if (Math.abs(window.innerWidth - baseWidth) > 24 || window.innerHeight > baseHeight) {
+        baseHeight = window.innerHeight
+        baseWidth = window.innerWidth
+      }
+      const overlay = Math.max(0, window.innerHeight - visible)
+      // 「压小 WebView」这种键盘只出现在触屏设备上；否则桌面端竖向缩小窗口会被误判成弹了键盘
+      const touch = window.matchMedia('(hover: none)').matches || window.matchMedia('(pointer: coarse)').matches
+      const squeezed = touch ? Math.max(0, baseHeight - window.innerHeight) : 0
+      const keyboard = Math.max(overlay, squeezed)
+      root.style.setProperty('--kb-inset', `${Math.round(overlay)}px`)
       root.style.setProperty('--app-safe-top', `${Math.round(viewport ? viewport.offsetTop : 0)}px`)
-      root.dataset.keyboard = keyboard > 60 ? 'open' : 'closed'
+      root.dataset.keyboard = keyboard > 120 ? 'open' : 'closed'
     }
     sync()
     window.addEventListener('resize', sync)

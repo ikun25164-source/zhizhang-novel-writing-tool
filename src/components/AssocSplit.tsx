@@ -156,7 +156,29 @@ export default function AssocSplit({
           className="assoc-split-grip"
           role="separator"
           aria-orientation="horizontal"
-          aria-label="拖动调整创作联动栏高度"
+          aria-label="创作联动栏高度"
+          aria-valuenow={Math.round(shownHeight)}
+          aria-valuemin={MIN}
+          aria-valuemax={maxHeight}
+          tabIndex={0}
+          title="方向键调整高度，Enter 收起，双击恢复默认"
+          onKeyDown={(event) => {
+            const step = event.shiftKey ? 72 : 24
+            if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+              event.preventDefault()
+              event.stopPropagation()
+              const delta = event.key === 'ArrowUp' ? step : -step
+              setHeight(Math.max(MIN, Math.min(maxHeight, (shell.current?.getBoundingClientRect().height || height) + delta)))
+            } else if (event.key === 'Home') {
+              event.preventDefault()
+              event.stopPropagation()
+              setHeight(defaultHeight())
+            } else if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault()
+              event.stopPropagation()
+              onClose()
+            }
+          }}
           onPointerDown={(event) => {
             const startHeight = shell.current?.getBoundingClientRect().height || height
             if (focusedRef.current) {

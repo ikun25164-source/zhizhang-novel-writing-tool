@@ -224,6 +224,17 @@ function MapCanvas({ map, addMode, onAdd }: { map: MapDoc; addMode: boolean; onA
           } else if (event.key === '0') {
             event.preventDefault()
             fit()
+          } else if (event.key === 'Enter' && addMode) {
+            // 添加模式下用键盘按视口中心放置地点，不必再点一下鼠标
+            event.preventDefault()
+            const rect = stageRef.current?.getBoundingClientRect()
+            const world = stageRef.current?.querySelector('.map-world')?.getBoundingClientRect()
+            if (rect && world && world.width > 0) {
+              onAdd(
+                clamp(((rect.left + rect.width / 2 - world.left) / world.width) * 100, 0, 100),
+                clamp(((rect.top + rect.height / 2 - world.top) / world.height) * 100, 0, 100),
+              )
+            }
           }
         }}
         onPointerDown={onPointerDown}
@@ -269,14 +280,14 @@ function MapCanvas({ map, addMode, onAdd }: { map: MapDoc; addMode: boolean; onA
           })}
         </div>
         <div className="map-hint">
-          {addMode ? '点击地图放置新地点' : '拖动平移 · 滚轮 / 双指缩放 · 点击标记查看地点'}
+          {addMode ? '点击地图或按 Enter 在视口中心放置新地点' : '拖动 / 方向键平移 · 滚轮 / +/- 缩放 · 点击或 Tab 到标记查看地点'}
         </div>
         <div className="zoom-badge">
-          <button className="top-icon" style={{ width: 26, height: 26 }} onClick={() => zoomAt(zoom - 0.2, (stageRef.current?.getBoundingClientRect().left || 0) + size.w / 2, (stageRef.current?.getBoundingClientRect().top || 0) + size.h / 2)}>
+          <button className="top-icon" style={{ width: 26, height: 26 }} title="缩小" aria-label="缩小" onClick={() => zoomAt(zoom - 0.2, (stageRef.current?.getBoundingClientRect().left || 0) + size.w / 2, (stageRef.current?.getBoundingClientRect().top || 0) + size.h / 2)}>
             <Minus size={13} />
           </button>
           <span>{Math.round(zoom * 100)}%</span>
-          <button className="top-icon" style={{ width: 26, height: 26 }} onClick={() => zoomAt(zoom + 0.2, (stageRef.current?.getBoundingClientRect().left || 0) + size.w / 2, (stageRef.current?.getBoundingClientRect().top || 0) + size.h / 2)}>
+          <button className="top-icon" style={{ width: 26, height: 26 }} title="放大" aria-label="放大" onClick={() => zoomAt(zoom + 0.2, (stageRef.current?.getBoundingClientRect().left || 0) + size.w / 2, (stageRef.current?.getBoundingClientRect().top || 0) + size.h / 2)}>
             <Plus size={13} />
           </button>
           <button className="top-icon" style={{ width: 26, height: 26 }} onClick={fit} title="适应窗口">

@@ -268,11 +268,11 @@ export function installArrowNav() {
     cursor = el
   }
 
-  const moveTo = (el: HTMLElement) => {
+  const moveTo = (el: HTMLElement, activate = true) => {
     el.focus({ preventScroll: true })
     el.scrollIntoView({ block: 'nearest', inline: 'nearest' })
     remember(el)
-    if (el.dataset.navSwitch === undefined) return
+    if (!activate || el.dataset.navSwitch === undefined) return
     activating = true
     try {
       el.click()
@@ -395,7 +395,8 @@ export function installArrowNav() {
       return
     }
     event.preventDefault()
-    moveTo(next)
+    // 上下键路过视图按钮只做预览式聚焦，不按下去；只有左右沿顶栏 / 底栏横扫时才即时切视图
+    moveTo(next, dir === 'ArrowLeft' || dir === 'ArrowRight' || !isViewNav(next))
   }
 
   // 编辑器（Tiptap）自己会 preventDefault Escape，冒泡阶段就轮不到我们了，所以捕获阶段先处理
