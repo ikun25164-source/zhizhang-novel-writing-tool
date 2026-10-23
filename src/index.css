@@ -2656,6 +2656,39 @@ html[data-keyboard="open"] .side-panel .panel-foot {
   text-overflow: ellipsis;
   backdrop-filter: blur(4px);
 }
+/* 待放置的图钉：方向键正在摆它，所以要做成"虚位以待"的样子 */
+.map-pin.ghost {
+  z-index: 6;
+  pointer-events: none;
+}
+.map-pin.ghost .pin-head {
+  border-style: dashed;
+  border-width: 2px;
+  background: color-mix(in srgb, var(--accent) 26%, transparent);
+  animation: pin-nudge 1.1s ease-in-out infinite;
+}
+.map-pin.ghost .pin-label {
+  border-style: dashed;
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  background: color-mix(in srgb, var(--paper) 88%, transparent);
+}
+@keyframes pin-nudge {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+  60% {
+    box-shadow: 0 0 0 9px transparent;
+  }
+}
+.map-stage:focus-visible {
+  outline-offset: -3px;
+}
+.map-stage:focus-visible .map-hint {
+  border-color: var(--accent);
+  color: var(--ink);
+}
 .map-pin.active .pin-head {
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 30%, transparent);
 }

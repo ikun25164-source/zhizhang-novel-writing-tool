@@ -22,7 +22,17 @@ import { PlaceDetail } from './details'
 import PanelEdge from './PanelEdge'
 import { Confirm, Empty } from './ui'
 
-function MapCanvas({ map, addMode, onAdd }: { map: MapDoc; addMode: boolean; onAdd: (x: number, y: number) => void }) {
+function MapCanvas({
+  map,
+  addMode,
+  onAdd,
+  onCancelAdd,
+}: {
+  map: MapDoc
+  addMode: boolean
+  onAdd: (x: number, y: number) => void
+  onCancelAdd: () => void
+}) {
   const places = useApp((s) => s.places)
   const selectedPlaceId = useApp((s) => s.selectedPlaceId)
   const selectPlace = useApp((s) => s.selectPlace)
@@ -32,6 +42,7 @@ function MapCanvas({ map, addMode, onAdd }: { map: MapDoc; addMode: boolean; onA
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [dragging, setDragging] = useState(false)
+  const [ghost, setGhost] = useState<{ x: number; y: number } | null>(null)
   const pointers = useRef(new Map<number, { x: number; y: number }>())
   const gesture = useRef({
     mode: 'none' as 'none' | 'drag' | 'pinch',
@@ -99,6 +110,28 @@ function MapCanvas({ map, addMode, onAdd }: { map: MapDoc; addMode: boolean; onA
     setZoom(1)
     setPan({ x: (size.w - worldW) / 2, y: (size.h - worldH) / 2 })
   }
+
+  // 视口中心换算成世界坐标百分比，作为待放置图钉的起点
+  const centerPct = () => {
+    const rect = stageRef.current?.getBoundingClientRect()
+    const world = stageRef.current?.querySelector('.map-world')?.getBoundingClientRect()
+    if (!rect || !world || !world.width) return { x: 50, y: 50 }
+    return {
+      x: clamp(((rect.left + rect.width / 2 - world.left) / world.width) * 100, 0, 100),
+      y: clamp(((rect.top + rect.height / 2 - world.top) / world.height) * 100, 0, 100),
+    }
+  }
+
+  /** 点「添加地点」后焦点直接落到画布，图钉已经摆好，剩下的全用方向键完成 */
+  useEffect(() => {
+    if (!addMode) {
+      setGhost(null)
+      return
+    }
+    setGhost(centerPct())
+    stageRef.current?.focus({ preventScroll: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addMode])
 
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if ((event.target as HTMLElement).closest('.map-pin')) return
@@ -202,8 +235,65 @@ function MapCanvas({ map, addMode, onAdd }: { map: MapDoc; addMode: boolean; onA
         ref={stageRef}
         className={cx('map-stage', dragging && 'dragging')}
         tabIndex={0}
-        aria-label="地图画布：方向键平移，加号减号缩放，0 适应窗口，Tab 到地点标记"
+        aria-label={
+          addMode
+            ? '地图画布：方向键移动待放置的图钉，Shift 加上下方向键缩放，Enter 放下，Esc 取消'
+            : '地图画布：方向键平移，Shift 加上下方向键或加减号缩放，0 适应窗口，Tab 到地点标记'
+        }
         onKeyDown={(event) => {
+          // 画布里的缩放按钮、图钉、地点标记自己要用按键，别让画布把它们的方向键吞掉
+          if (event.target !== event.currentTarget) return
+          const native = event.nativeEvent
+          if (native.metaKey || native.ctrlKey || native.altKey || native.isComposing) return
+          const zooming = event.shiftKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown')
+          const panning = event.key === 'ArrowLeft' || event.key === 'ArrowRight' || event.key === 'ArrowUp' || event.key === 'ArrowDown'
+          if (event.key === '+' || event.key === '=') {
+            event.preventDefault()
+            centerZoom(0.2)
+            return
+          }
+          if (event.key === '-' || event.key === '_') {
+            event.preventDefault()
+            centerZoom(-0.2)
+            return
+          }
+          if (event.key === '0') {
+            event.preventDefault()
+            fit()
+            return
+          }
+          if (event.key === 'Enter') {
+            if (!addMode || !ghost) return
+            event.preventDefault()
+            onAdd(ghost.x, ghost.y)
+            return
+          }
+          if (event.key === 'Escape') {
+            event.preventDefault()
+            event.stopPropagation()
+            if (addMode) {
+              onCancelAdd()
+              return
+            }
+            // 画布把方向键全包了，Esc 把焦点交还给工具条，免得走不出去
+            const back = event.currentTarget.closest('.center-pane, .view')?.querySelector<HTMLElement>('.map-toolbar button')
+            back?.focus()
+            return
+          }
+          if (!panning) return
+          event.preventDefault()
+          // Shift + 上下 = 缩放（按住方向键会连发，缩放和平移都能一路推到底）
+          if (zooming) {
+            centerZoom(event.key === 'ArrowUp' ? 0.12 : -0.12)
+            return
+          }
+          if (addMode && ghost) {
+            const step = event.shiftKey ? 4 : 1.2
+            const dx = event.key === 'ArrowRight' ? step : event.key === 'ArrowLeft' ? -step : 0
+            const dy = event.key === 'ArrowDown' ? step : event.key === 'ArrowUp' ? -step : 0
+            setGhost({ x: clamp(ghost.x + dx, 0, 100), y: clamp(ghost.y + dy, 0, 100) })
+            return
+          }
           const step = event.shiftKey ? 160 : 60
           const move: Record<string, [number, number]> = {
             ArrowLeft: [step, 0],
@@ -211,31 +301,8 @@ function MapCanvas({ map, addMode, onAdd }: { map: MapDoc; addMode: boolean; onA
             ArrowUp: [0, step],
             ArrowDown: [0, -step],
           }
-          if (move[event.key]) {
-            event.preventDefault()
-            const [dx, dy] = move[event.key]
-            setPan((current) => ({ x: current.x + dx, y: current.y + dy }))
-          } else if (event.key === '+' || event.key === '=') {
-            event.preventDefault()
-            centerZoom(0.2)
-          } else if (event.key === '-' || event.key === '_') {
-            event.preventDefault()
-            centerZoom(-0.2)
-          } else if (event.key === '0') {
-            event.preventDefault()
-            fit()
-          } else if (event.key === 'Enter' && addMode) {
-            // 添加模式下用键盘按视口中心放置地点，不必再点一下鼠标
-            event.preventDefault()
-            const rect = stageRef.current?.getBoundingClientRect()
-            const world = stageRef.current?.querySelector('.map-world')?.getBoundingClientRect()
-            if (rect && world && world.width > 0) {
-              onAdd(
-                clamp(((rect.left + rect.width / 2 - world.left) / world.width) * 100, 0, 100),
-                clamp(((rect.top + rect.height / 2 - world.top) / world.height) * 100, 0, 100),
-              )
-            }
-          }
+          const [dx, dy] = move[event.key]
+          setPan((current) => ({ x: current.x + dx, y: current.y + dy }))
         }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -278,9 +345,28 @@ function MapCanvas({ map, addMode, onAdd }: { map: MapDoc; addMode: boolean; onA
               </button>
             )
           })}
+          {addMode && ghost && (
+            <div
+              className="map-pin ghost"
+              aria-hidden="true"
+              style={{
+                left: `${ghost.x}%`,
+                top: `${ghost.y}%`,
+                transform: `translate(-50%, -100%) scale(${1 / zoom})`,
+                transformOrigin: 'bottom center',
+              }}
+            >
+              <span className="pin-head">
+                <MapPin size={13} />
+              </span>
+              <span className="pin-label">新地点</span>
+            </div>
+          )}
         </div>
         <div className="map-hint">
-          {addMode ? '点击地图或按 Enter 在视口中心放置新地点' : '拖动 / 方向键平移 · 滚轮 / +/- 缩放 · 点击或 Tab 到标记查看地点'}
+          {addMode
+            ? '方向键移动图钉（按住连发）· Shift+↑/↓ 缩放 · Enter 放下 · Esc 取消'
+            : '拖动 / 方向键平移 · Shift+↑/↓ 或 +/- 缩放 · 0 适应窗口 · 点击或 Tab 到标记查看地点'}
         </div>
         <div className="zoom-badge">
           <button className="top-icon" style={{ width: 26, height: 26 }} title="缩小" aria-label="缩小" onClick={() => zoomAt(zoom - 0.2, (stageRef.current?.getBoundingClientRect().left || 0) + size.w / 2, (stageRef.current?.getBoundingClientRect().top || 0) + size.h / 2)}>
@@ -471,7 +557,7 @@ export default function MapsView() {
               <span className="badge badge-jade">{mapEvents.length} 事件</span>
               <div className="grow" />
               <button className={cx('btn btn-sm', addMode && 'btn-primary')} onClick={() => setAddMode(!addMode)}>
-                <MapPin size={13} /> {addMode ? '点击地图放置…' : '添加地点'}
+                <MapPin size={13} /> {addMode ? '方向键放置中…' : '添加地点'}
               </button>
               <button
                 className="btn btn-sm btn-ghost"
@@ -484,7 +570,7 @@ export default function MapsView() {
                 <Settings2 size={13} />
               </button>
             </div>
-            <MapCanvas map={map} addMode={addMode} onAdd={createPlace} />
+            <MapCanvas map={map} addMode={addMode} onAdd={createPlace} onCancelAdd={() => setAddMode(false)} />
           </>
         )}
       </main>
@@ -510,9 +596,8 @@ export default function MapsView() {
           </div>
         </div>
         <div className="panel-body scroll-thin" style={{ padding: 0 }}>
-          {selectedPlace ? (
-            <PlaceDetail key={selectedPlace.id} id={selectedPlace.id} />
-          ) : map ? (
+          {selectedPlace && <PlaceDetail key={selectedPlace.id} id={selectedPlace.id} />}
+          {map && !selectedPlace && (
             <div style={{ padding: 12 }} className="col gap-10">
               <label className="field">
                 <span className="field-label">地图名称</span>
@@ -532,6 +617,12 @@ export default function MapsView() {
                 {map.width} × {map.height} px
               </div>
               <div className="divider" style={{ margin: '4px 0' }} />
+            </div>
+          )}
+          {map ? (
+            /* 地点索引常驻在这里：选中某个地点时详情出现在它上方，列表本身不消失，
+               否则方向键一走焦就把自己的落脚点删掉了 */
+            <div style={{ padding: 12 }} className="col gap-10">
               <div className="assoc-label">
                 <span className="row gap-4">
                   <MapPin size={12} /> 地点索引
@@ -557,18 +648,22 @@ export default function MapsView() {
                     </button>
                   )
                 })}
-                {mapPlaces.length === 0 && <div className="small muted" style={{ padding: 6 }}>还没有地点。点击上方「添加地点」，然后在地图上落点。</div>}
+                {mapPlaces.length === 0 && <div className="small muted" style={{ padding: 6 }}>还没有地点。用上方「添加地点」，然后方向键落点。</div>}
               </div>
               <button className="btn btn-sm" onClick={() => setAddMode(true)}>
                 <Plus size={12} /> 在地图上添加地点
               </button>
-              <div className="divider" style={{ margin: '4px 0' }} />
-              <button className="btn btn-danger btn-sm" onClick={() => setConfirmDelete(true)}>
-                <Trash2 size={13} /> 删除这张地图
-              </button>
-              <div className="hint-box">
-                拖动地图可平移，滚轮或双指可缩放。地点会保存相对坐标，换屏幕尺寸也不会错位。
-              </div>
+              {!selectedPlace && (
+                <>
+                  <div className="divider" style={{ margin: '4px 0' }} />
+                  <button className="btn btn-danger btn-sm" onClick={() => setConfirmDelete(true)}>
+                    <Trash2 size={13} /> 删除这张地图
+                  </button>
+                  <div className="hint-box">
+                    拖动地图可平移，滚轮或双指可缩放。地点会保存相对坐标，换屏幕尺寸也不会错位。
+                  </div>
+                </>
+              )}
             </div>
           ) : (
             <Empty>选择或导入一张地图</Empty>
