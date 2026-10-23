@@ -78,7 +78,9 @@ const atEditableEdge = (el: HTMLElement, dir: Arrow): boolean => {
   const lines = all.getClientRects()
   if (!lines.length || !caret.height) return true
   const line = dir === 'ArrowUp' ? lines[0] : lines[lines.length - 1]
-  return dir === 'ArrowUp' ? caret.top <= line.top + 2 : caret.bottom >= line.bottom - 2
+  // 光标矩形比行盒矮（行高 190% 时差十几 px），按行高的一半判断是否就在首 / 末行
+  const slack = Math.max(6, line.height * 0.6)
+  return dir === 'ArrowUp' ? caret.top - line.top < slack : line.bottom - caret.bottom < slack
 }
 
 const isVisible = (el: HTMLElement): boolean => {
