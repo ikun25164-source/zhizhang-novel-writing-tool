@@ -142,6 +142,9 @@ const pickHorizontal = (from: HTMLElement, candidates: HTMLElement[], dir: Arrow
     return pick
   }
 
+  // 视图按钮只在本行内移动，走到两端就停下，不再跨行乱跳或首尾循环
+  if (isViewNav(from)) return null
+
   // 同行没有目标时先在同一栏（目录 / 正文 / 侧栏）里找，别一路横跨到别的面板
   const region = regionOf(from)
   const around = region ? ahead.filter((el) => regionOf(el) === region) : []
@@ -209,8 +212,8 @@ const viewNeighbour = (list: HTMLElement[], current: HTMLElement, dir: Arrow) =>
   const views = list.filter(isViewNav)
   const index = views.indexOf(current)
   if (index < 0) return null
-  const next = views[(index + (dir === 'ArrowRight' ? 1 : -1) + views.length) % views.length]
-  return next === current ? null : next
+  const next = views[index + (dir === 'ArrowRight' ? 1 : -1)]
+  return next ?? null
 }
 
 // 搜索框 ↓ 直达第一条结果 / 列表项
@@ -332,15 +335,6 @@ export function installArrowNav() {
     }
 
     const dir = event.key as Arrow
-
-    // 视图导航项：左右键按顺序循环切换，不按几何位置乱跳
-    if (isViewNav(current) && (dir === 'ArrowLeft' || dir === 'ArrowRight')) {
-      const next = viewNeighbour(list, current, dir)
-      if (!next) return
-      event.preventDefault()
-      moveTo(next)
-      return
-    }
 
     const next =
       dir === 'ArrowLeft' || dir === 'ArrowRight'
