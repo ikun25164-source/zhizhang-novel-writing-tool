@@ -1,0 +1,302 @@
+const ARROWS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'])
+
+type Arrow = 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight'
+
+const FOCUSABLE = [
+  'button:not([disabled])',
+  'a[href]',
+  'input:not([disabled]):not([type="hidden"])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[role="button"]:not([aria-disabled="true"])',
+  '[role="tab"]:not([aria-disabled="true"])',
+  '[role="option"]:not([aria-disabled="true"])',
+  '[role="menuitem"]:not([aria-disabled="true"])',
+  '[tabindex]:not([tabindex="-1"])',
+  '[contenteditable="true"]',
+].join(',')
+
+// 这些控件用方向键做原生操作（步进、下拉、分段选择），不参与焦点移动
+const SPIN_INPUTS = new Set(['number', 'range', 'date', 'time', 'datetime-local', 'month', 'week'])
+const PLAIN_INPUTS = new Set(['button', 'submit', 'reset', 'checkbox', 'radio', 'file', 'color', 'image'])
+
+let activating = false
+
+/** 由方向键触发的 click 期间为 true，列表组件据此避免关抽屉 / 弹面板。 */
+export const isNavActivation = () => activating
+
+const inputType = (el: HTMLElement) => (el instanceof HTMLInputElement ? el.type : '')
+
+// 上下键：多行文本、下拉、富文本、数字/日期/滑杆保留原生行为，单行输入框允许离开
+const keepsVerticalArrows = (el: HTMLElement | null): boolean => {
+  if (!el) return false
+  if (el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') return true
+  if (el.tagName === 'INPUT') return SPIN_INPUTS.has(inputType(el))
+  return el.isContentEditable
+}
+
+// 左右键：所有文本控件保留光标移动
+const keepsHorizontalArrows = (el: HTMLElement | null): boolean => {
+  if (!el) return false
+  if (el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') return true
+  if (el.tagName === 'INPUT') return !PLAIN_INPUTS.has(inputType(el))
+  return el.isContentEditable
+}
+
+const isVisible = (el: HTMLElement): boolean => {
+  if (el.closest('[inert], [aria-hidden="true"]')) return false
+  if (typeof el.checkVisibility === 'function') {
+    if (!el.checkVisibility({ checkOpacity: false, checkVisibilityCSS: true })) return false
+  } else {
+    const style = getComputedStyle(el)
+    if (style.display === 'none' || style.visibility === 'hidden') return false
+  }
+  const rect = el.getBoundingClientRect()
+  return (
+    rect.width >= 4 &&
+    rect.height >= 4 &&
+    rect.bottom > 0 &&
+    rect.top < window.innerHeight &&
+    rect.right > 0 &&
+    rect.left < window.innerWidth
+  )
+}
+
+const lastVisible = <T extends HTMLElement>(list: ArrayLike<T>): T | null => {
+  for (let i = list.length - 1; i >= 0; i -= 1) {
+    if (isVisible(list[i])) return list[i]
+  }
+  return null
+}
+
+const scopeOf = (base: Element | null): HTMLElement => {
+  const menu =
+    base?.closest<HTMLElement>('.menu-pop') ??
+    base?.closest('.menu-wrap')?.querySelector<HTMLElement>('.menu-pop')
+  if (menu) return menu
+  const mask = lastVisible(document.querySelectorAll<HTMLElement>('.modal-mask'))
+  if (mask) return mask
+  const peek = document.querySelector<HTMLElement>('.peek-drawer')
+  if (peek) return peek
+  const drawer = document.querySelector<HTMLElement>('.side-panel.mobile-open')
+  if (drawer) return drawer
+  return document.body
+}
+
+const collect = (scope: HTMLElement): HTMLElement[] =>
+  Array.from(scope.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((el) => {
+    if (el.closest('[inert], [aria-hidden="true"]')) return false
+    if (el.getAttribute('aria-disabled') === 'true') return false
+    if (el.closest('.ProseMirror') && !el.classList.contains('ProseMirror')) return false
+    if (el.closest('[contenteditable="true"]') && !el.isContentEditable) return false
+    return isVisible(el)
+  })
+
+const centerOf = (el: HTMLElement) => {
+  const rect = el.getBoundingClientRect()
+  return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
+}
+
+function bestInDirection(from: { x: number; y: number }, list: HTMLElement[], dir: Arrow, current: HTMLElement | null) {
+  let pick: HTMLElement | null = null
+  let bestScore = Infinity
+  for (const el of list) {
+    if (el === current || el.contains(current)) continue
+    const point = centerOf(el)
+    const dx = point.x - from.x
+    const dy = point.y - from.y
+    let primary = 0
+    let side = 0
+    if (dir === 'ArrowRight') {
+      if (dx < 4) continue
+      primary = dx
+      side = Math.abs(dy)
+    } else if (dir === 'ArrowLeft') {
+      if (dx > -4) continue
+      primary = -dx
+      side = Math.abs(dy)
+    } else if (dir === 'ArrowDown') {
+      if (dy < 4) continue
+      primary = dy
+      side = Math.abs(dx)
+    } else {
+      if (dy > -4) continue
+      primary = -dy
+      side = Math.abs(dx)
+    }
+    const score = primary + side * 1.8
+    if (score < bestScore) {
+      bestScore = score
+      pick = el
+    }
+  }
+  return pick
+}
+
+const isViewNav = (el: HTMLElement) => el.classList.contains('nav-btn') || el.classList.contains('bottom-btn')
+
+// Home / End 只在同一组（最小公共容器）内跳首尾，避免跳到整页最后一个按钮
+const topLevel = (items: HTMLElement[]) =>
+  items.filter((el) => !items.some((other) => other !== el && other.contains(el)))
+
+const groupOf = (current: HTMLElement, list: HTMLElement[]) => {
+  let node = current.parentElement
+  while (node && node !== document.body && node !== document.documentElement) {
+    const group = list.filter((el) => node!.contains(el))
+    if (group.length > 1) return topLevel(group)
+    node = node.parentElement
+  }
+  return topLevel(list)
+}
+
+const viewNeighbour = (list: HTMLElement[], current: HTMLElement, dir: Arrow) => {
+  const views = list.filter(isViewNav)
+  const index = views.indexOf(current)
+  if (index < 0) return null
+  const next = views[(index + (dir === 'ArrowRight' ? 1 : -1) + views.length) % views.length]
+  return next === current ? null : next
+}
+
+// 搜索框 ↓ 直达第一条结果 / 列表项
+const RESULT_ROWS = ['search-result', 'char-row', 'map-row', 'chapter-item', 'outline-node', 'entity-row']
+
+export function installArrowNav() {
+  let cursor: HTMLElement | null = null
+
+  const remember = (el: HTMLElement) => {
+    cursor = el
+  }
+
+  const moveTo = (el: HTMLElement) => {
+    el.focus({ preventScroll: true })
+    el.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    remember(el)
+    if (el.dataset.navSwitch === undefined) return
+    activating = true
+    try {
+      el.click()
+    } finally {
+      activating = false
+    }
+    if (el.isConnected) remember(el)
+  }
+
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (event.defaultPrevented || event.isComposing) return
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
+
+    const target = event.target instanceof HTMLElement ? event.target : null
+    const active = document.activeElement instanceof HTMLElement ? document.activeElement : null
+
+    // role="button" 的容器（章节、作品卡）按空格激活
+    if (event.key === ' ' && !event.repeat) {
+      const el = active
+      if (
+        el &&
+        el !== document.body &&
+        el.getAttribute('role') === 'button' &&
+        el.getAttribute('aria-disabled') !== 'true' &&
+        el.tagName !== 'BUTTON' &&
+        el.tagName !== 'A' &&
+        !el.isContentEditable
+      ) {
+        event.preventDefault()
+        el.click()
+      }
+      return
+    }
+
+    const isHomeEnd = event.key === 'Home' || event.key === 'End'
+    if (!ARROWS.has(event.key) && !isHomeEnd) return
+
+    const control = target ?? active
+
+    if (isHomeEnd) {
+      if (keepsHorizontalArrows(control)) return
+    } else {
+      const vertical = event.key === 'ArrowUp' || event.key === 'ArrowDown'
+      if (control && (vertical ? keepsVerticalArrows(control) : keepsHorizontalArrows(control))) {
+        // 文本控件内保留原生光标 / 选项移动；搜索框 ↓ 进入结果列表
+        if (event.key !== 'ArrowDown' || !target?.closest('.search-box')) return
+        const scope = scopeOf(target)
+        const first = collect(scope).find((el) => RESULT_ROWS.some((cls) => el.classList.contains(cls)))
+        if (!first) return
+        event.preventDefault()
+        moveTo(first)
+        return
+      }
+    }
+
+    const scope = scopeOf(control)
+    const list = collect(scope)
+    if (!list.length) return
+
+    let current: HTMLElement | null = active && list.includes(active) ? active : null
+    if (!current && cursor && cursor.isConnected && list.includes(cursor)) current = cursor
+
+    if (!current) {
+      // 弹窗 / 下拉菜单已打开但焦点还在外面：先把焦点送进去
+      if (scope !== document.body) {
+        event.preventDefault()
+        const fromEnd = event.key === 'ArrowUp' || event.key === 'ArrowLeft' || event.key === 'End'
+        moveTo(fromEnd ? list[list.length - 1] : list[0])
+        return
+      }
+      if (isHomeEnd) return
+      // 整页没有焦点时：左右方向键从当前视图的导航项开始切换，上下留给浏览器滚动
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+      const nav =
+        list.find((el) => el.classList.contains('bottom-btn') && el.classList.contains('active')) ||
+        list.find((el) => el.classList.contains('nav-btn') && el.classList.contains('active'))
+      if (!nav) return
+      event.preventDefault()
+      moveTo(viewNeighbour(list, nav, event.key as Arrow) ?? nav)
+      return
+    }
+
+    if (isHomeEnd) {
+      // 弹窗 / 详情抽屉按整个面板算首尾；列表、菜单、抽屉里仍按同一组算
+      const wholeScope = scope.classList.contains('modal-mask') || scope.classList.contains('peek-drawer')
+      const group = wholeScope ? topLevel(list) : groupOf(current, list)
+      const edge = event.key === 'Home' ? group[0] : group[group.length - 1]
+      if (!edge || edge === current) return
+      event.preventDefault()
+      moveTo(edge)
+      return
+    }
+
+    const dir = event.key as Arrow
+
+    // 视图导航项：左右键按顺序循环切换，不按几何位置乱跳
+    if (isViewNav(current) && (dir === 'ArrowLeft' || dir === 'ArrowRight')) {
+      const next = viewNeighbour(list, current, dir)
+      if (!next) return
+      event.preventDefault()
+      moveTo(next)
+      return
+    }
+
+    const next = bestInDirection(centerOf(current), list, dir, current)
+    if (!next) {
+      // 弹层里走到头不再带动背景滚动
+      if (scope !== document.body && (dir === 'ArrowUp' || dir === 'ArrowDown')) event.preventDefault()
+      return
+    }
+    event.preventDefault()
+    moveTo(next)
+  }
+
+  const onFocusIn = (event: FocusEvent) => {
+    const el = event.target
+    if (!(el instanceof HTMLElement) || el === document.body) return
+    if (!el.matches(FOCUSABLE)) return
+    remember(el)
+  }
+
+  window.addEventListener('keydown', onKeyDown)
+  window.addEventListener('focusin', onFocusIn)
+  return () => {
+    window.removeEventListener('keydown', onKeyDown)
+    window.removeEventListener('focusin', onFocusIn)
+  }
+}
