@@ -142,6 +142,9 @@ const pickHorizontal = (from: HTMLElement, candidates: HTMLElement[], dir: Arrow
     return pick
   }
 
+  // 顶栏/底栏/面板工具条上的左右移动只在本行内进行，走到头就停下，不跨行跳进别的区域
+  if (from.closest('.topbar, .bottom-nav, .panel-head')) return null
+
   // 视图按钮只在本行内移动，走到两端就停下，不再跨行乱跳或首尾循环
   if (isViewNav(from)) return null
 
@@ -193,6 +196,10 @@ function bestInDirection(from: { x: number; y: number }, list: HTMLElement[], di
 }
 
 const isViewNav = (el: HTMLElement) => el.classList.contains('nav-btn') || el.classList.contains('bottom-btn')
+
+// 侧栏折叠开关只是布局开关，方向键浏览时跳过，免得焦点停在「收起目录栏」这类小图标上；Tab 仍可到达
+const LAYOUT_CHROME = '.side-toggle, .panel-collapse'
+const isLayoutChrome = (el: HTMLElement) => el.matches(LAYOUT_CHROME)
 
 // Home / End 只在同一组（最小公共容器）内跳首尾，避免跳到整页最后一个按钮
 const topLevel = (items: HTMLElement[]) =>
@@ -287,11 +294,12 @@ export function installArrowNav() {
     }
 
     const scope = scopeOf(control)
-    const list = collect(scope)
+    const all = collect(scope)
+    const list = all.filter((el) => !isLayoutChrome(el))
     if (!list.length) return
 
-    let current: HTMLElement | null = active && list.includes(active) ? active : null
-    if (!current && cursor && cursor.isConnected && list.includes(cursor)) current = cursor
+    let current: HTMLElement | null = active && all.includes(active) ? active : null
+    if (!current && cursor && cursor.isConnected && all.includes(cursor)) current = cursor
 
     if (!current) {
       // 点完列表项后抽屉收起，焦点还挂在隐藏的元素上：把焦点送回可见内容，而不是当成“没有焦点”去换视图
