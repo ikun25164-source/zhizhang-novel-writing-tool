@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { cx } from '../lib/utils'
+import { cx, inertAttr } from '../lib/utils'
 
 const KEY = 'zhizhang.assocSplitHeight'
 const MIN = 132
@@ -147,6 +147,7 @@ export default function AssocSplit({
       className={cx('assoc-split', open && 'is-open', focused && 'is-focused', dragging && 'is-dragging')}
       style={{ height: `${shownHeight}px` }}
       aria-hidden={!open}
+      {...inertAttr(!open)}
       onFocusCapture={handleFocus}
       onBlurCapture={handleBlur}
     >

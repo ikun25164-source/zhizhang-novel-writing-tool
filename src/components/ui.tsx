@@ -3,6 +3,25 @@ import { createPortal } from 'react-dom'
 import { Check, ChevronDown, X } from 'lucide-react'
 import { cx } from '../lib/utils'
 
+const FOCUSABLES =
+  'button:not([disabled]), a[href], input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"]), [contenteditable=true]'
+
+// 记住弹窗外最后聚焦过的元素：弹窗关闭后把焦点还给它，键盘操作才不会断链。
+// 下拉菜单项随菜单一起卸载，所以直接记它的触发按钮。
+let lastOutsideModal: HTMLElement | null = null
+if (typeof window !== 'undefined') {
+  window.addEventListener(
+    'focusin',
+    (event) => {
+      const el = event.target as HTMLElement | null
+      if (!el || el.closest('.modal-mask')) return
+      const pop = el.closest('.menu-pop')
+      lastOutsideModal = pop ? (pop.parentElement?.querySelector<HTMLElement>(FOCUSABLES) ?? el) : el
+    },
+    true,
+  )
+}
+
 export function Modal({
   open,
   title,
@@ -22,22 +41,76 @@ export function Modal({
   narrow?: boolean
   icon?: ReactNode
 }) {
+  const boxRef = useRef<HTMLDivElement>(null)
+
+  const pickFocusables = () => {
+    const root = boxRef.current
+    if (!root) return []
+    return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLES)).filter((el) => {
+      const r = el.getBoundingClientRect()
+      return r.width > 0 && r.height > 0
+    })
+  }
+
+  // 只依赖 open：onClose 每次渲染都是新函数，放进依赖会让焦点反复抢来抢去
+  useEffect(() => {
+    if (!open) return
+    const previous = document.activeElement as HTMLElement | null
+    const timer = window.setTimeout(() => {
+      if (boxRef.current?.contains(document.activeElement)) return
+      const first = pickFocusables()[0]
+      ;(first ?? boxRef.current)?.focus()
+    }, 40)
+    return () => {
+      window.clearTimeout(timer)
+      const still = document.activeElement as HTMLElement | null
+      // 卸载时焦点通常还在弹窗里（马上要跟着一起消失），只有被应用主动挪到别处时才不抢回来
+      if (still && still !== document.body && !boxRef.current?.contains(still)) return
+      const connectedAncestor = (from: HTMLElement | null) => {
+        let node: HTMLElement | null = from
+        while (node && !node.isConnected) node = node.parentElement
+        return node && node !== document.body && node !== document.documentElement ? node : null
+      }
+      // 打开弹窗的可能是下拉菜单里的一项，关闭时那一项已卸载，往上找回还挂着的容器（通常是触发按钮）
+      const back = connectedAncestor(previous) ?? connectedAncestor(lastOutsideModal)
+      if (!back) return
+      const target = back.matches(FOCUSABLES) ? back : back.querySelector<HTMLElement>(FOCUSABLES)
+      target?.focus?.()
+    }
+  }, [open])
+
   useEffect(() => {
     if (!open) return
     const handler = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.stopPropagation()
         onClose()
+        return
+      }
+      if (event.key !== 'Tab') return
+      const items = pickFocusables()
+      if (!items.length) return
+      const active = document.activeElement as HTMLElement | null
+      const last = items[items.length - 1]
+      const first = items[0]
+      if (event.shiftKey) {
+        if (active === first || active === boxRef.current) {
+          event.preventDefault()
+          last.focus()
+        }
+      } else if (active === last) {
+        event.preventDefault()
+        first.focus()
       }
     }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
+    window.addEventListener('keydown', handler, true)
+    return () => window.removeEventListener('keydown', handler, true)
   }, [open, onClose])
 
   if (!open) return null
   return createPortal(
     <div className="modal-mask" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <div className={cx('modal', wide && 'wide', narrow && 'narrow')} role="dialog" aria-modal="true">
+      <div className={cx('modal', wide && 'wide', narrow && 'narrow')} role="dialog" aria-modal="true" tabIndex={-1} ref={boxRef}>
         {title !== undefined && (
           <div className="modal-head">
             {icon}
@@ -113,24 +186,39 @@ export function Dropdown({
 }) {
   const [open, setOpen] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLDivElement>(null)
+  // 菜单项 / Esc 关闭后，焦点原本挂在已经卸载的菜单项上，这里交回触发按钮
+  const closeAndRestore = () => {
+    setOpen(false)
+    requestAnimationFrame(() => {
+      const trigger = triggerRef.current?.querySelector<HTMLElement>(FOCUSABLES)
+      if (trigger && document.activeElement === document.body) trigger.focus()
+    })
+  }
 
   useEffect(() => {
     if (!open) return
     const handler = (event: MouseEvent) => {
       if (wrapRef.current && !wrapRef.current.contains(event.target as Node)) setOpen(false)
     }
-    const esc = (event: KeyboardEvent) => event.key === 'Escape' && setOpen(false)
+    const esc = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.stopPropagation()
+        closeAndRestore()
+      }
+    }
     document.addEventListener('mousedown', handler)
-    document.addEventListener('keydown', esc)
+    document.addEventListener('keydown', esc, true)
     return () => {
       document.removeEventListener('mousedown', handler)
-      document.removeEventListener('keydown', esc)
+      document.removeEventListener('keydown', esc, true)
     }
   }, [open])
 
   return (
     <div className={cx('menu-wrap', className)} ref={wrapRef}>
       <div
+        ref={triggerRef}
         onClick={(event) => {
           event.stopPropagation()
           setOpen((v) => !v)
@@ -144,7 +232,7 @@ export function Dropdown({
           className={cx('menu-pop', align === 'left' && 'left')}
           onClick={(event) => {
             const target = event.target as HTMLElement
-            if (target.closest('button')) setOpen(false)
+            if (target.closest('button')) closeAndRestore()
           }}
         >
           {children}

@@ -149,3 +149,8 @@ export function placeCategoryOptions(): string[] {
 export function timelinePalette(): string[] {
   return ['#1f2124', '#5a5f65', '#8f9398', '#b9bcc0', '#3d4045', '#74787e', '#a3a7ac']
 }
+
+/** React 18 的类型里还没有 inert，浏览器运行时已支持：收起的面板用它移出 Tab 顺序 */
+export function inertAttr(hidden: boolean): { inert?: '' } {
+  return hidden ? { inert: '' } : {}
+}

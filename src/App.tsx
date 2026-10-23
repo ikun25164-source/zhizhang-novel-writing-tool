@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useApp } from './store'
+import type { ViewName } from './types'
 import { installArrowNav } from './lib/arrowNav'
 import AppShell from './components/AppShell'
 import ProjectPicker from './components/ProjectPicker'
@@ -72,6 +73,12 @@ export default function App() {
       if (mod && event.key.toLowerCase() === 's') {
         event.preventDefault()
         void useApp.getState().flushAll()
+        return
+      }
+      const VIEWS: ViewName[] = ['write', 'structure', 'timeline', 'characters', 'maps']
+      if (event.altKey && !mod && /^[1-5]$/.test(event.key) && useApp.getState().project) {
+        event.preventDefault()
+        useApp.getState().setView(VIEWS[Number(event.key) - 1])
         return
       }
       if (event.key === 'Escape' && useApp.getState().mobileSheet !== 'none') {

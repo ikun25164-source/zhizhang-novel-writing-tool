@@ -17,7 +17,8 @@ import { useApp } from '../store'
 import { isNavActivation } from '../lib/arrowNav'
 import type { Timeline } from '../types'
 import { compareEvents, eventColumnKey, eventColumnLabel, eventSortKey, formatEventTime } from '../lib/time'
-import { cx, eventStatusLabel, formatNumber, timelinePalette } from '../lib/utils'
+import { cx, eventStatusLabel, formatNumber, inertAttr, timelinePalette } from '../lib/utils'
+import { useIsNarrow } from '../lib/useMedia'
 import { EventDetail } from './details'
 import PanelEdge from './PanelEdge'
 import { Confirm, Dropdown, Empty, Field, Modal } from './ui'
@@ -53,6 +54,8 @@ export default function TimelineView() {
     if (window.matchMedia('(max-width: 1023px)').matches) setMobileSheet('none')
     else setRightOpen(false)
   }
+
+  const narrow = useIsNarrow()
 
   const [hidden, setHidden] = useState<Set<string>>(new Set())
   const [laneDraft, setLaneDraft] = useState<LaneDraft | null>(null)
@@ -143,6 +146,7 @@ export default function TimelineView() {
           !leftOpen && 'is-collapsed',
           mobileSheet === 'left' && 'mobile-open',
         )}
+        {...inertAttr(mobileSheet !== 'left' && (narrow || !leftOpen))}
       >
         <div className="panel-head">
           <div className="panel-title">
@@ -390,6 +394,7 @@ export default function TimelineView() {
           !rightOpen && 'is-collapsed',
           mobileSheet === 'right' && 'mobile-open',
         )}
+        {...inertAttr(mobileSheet !== 'right' && (narrow || !rightOpen))}
       >
         <div className="panel-head">
           <div className="panel-title">

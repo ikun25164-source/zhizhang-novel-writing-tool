@@ -10,6 +10,8 @@ export default function PanelEdge({ side, label }: { side: 'left' | 'right'; lab
   const setPanelWidth = useApp((s) => s.setPanelWidth)
   const dragging = useRef(false)
 
+  const width = useApp((s) => (side === 'left' ? s.leftWidth : s.rightWidth))
+
   if (!open) {
     const Icon = side === 'left' ? PanelLeftOpen : PanelRightOpen
     return (
@@ -24,12 +26,34 @@ export default function PanelEdge({ side, label }: { side: 'left' | 'right'; lab
     )
   }
 
+  const limits = side === 'left' ? [190, 420, 264] : [230, 460, 306]
+  const nudge = (delta: number) => setPanelWidth(side, width + delta)
+
   return (
     <div
       className={cx('panel-resizer', `panel-resizer-${side}`)}
       role="separator"
       aria-orientation="vertical"
-      title={`拖动调整${label}宽度，双击恢复默认`}
+      aria-label={`${label}宽度`}
+      aria-valuenow={width}
+      aria-valuemin={limits[0]}
+      aria-valuemax={limits[1]}
+      tabIndex={0}
+      title={`拖动或方向键调整${label}宽度，Enter 收起，双击恢复默认`}
+      onKeyDown={(event) => {
+        const step = event.shiftKey ? 48 : 16
+        const grow = event.key === 'ArrowRight' ? step : event.key === 'ArrowLeft' ? -step : 0
+        if (grow) {
+          event.preventDefault()
+          nudge(side === 'left' ? grow : -grow)
+        } else if (event.key === 'Home') {
+          event.preventDefault()
+          setPanelWidth(side, limits[2])
+        } else if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          ;(side === 'left' ? setLeftOpen : setRightOpen)(false)
+        }
+      }}
       onPointerDown={(event) => {
         dragging.current = true
         event.currentTarget.classList.add('is-active')

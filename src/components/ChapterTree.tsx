@@ -187,6 +187,8 @@ export default function ChapterTree() {
                   <button
                     className="top-icon"
                     style={{ width: 18, height: 22 }}
+                    title={`${isCollapsed ? '展开' : '收起'}${volume.title}`}
+                    aria-expanded={!isCollapsed}
                     onClick={() => setCollapsed((state) => ({ ...state, [volume.id]: !state[volume.id] }))}
                   >
                     <ChevronDown

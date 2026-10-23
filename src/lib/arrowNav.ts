@@ -61,26 +61,25 @@ const atInputEdge = (el: HTMLElement | null, dir: Arrow): boolean => {
   return dir === 'ArrowLeft' ? start === 0 : start === el.value.length
 }
 
-// 富文本里光标停在整篇首 / 末行时，↑ / ↓ 允许离开编辑器
-const atEditableEdge = (el: HTMLElement, dir: Arrow): boolean => {
+// 富文本里光标停在首行 / 末行时返回光标位置，↑ / ↓ 据此离开编辑器（中间仍是原生光标）
+const editableEdgePoint = (el: HTMLElement, dir: Arrow): { x: number; y: number } | null => {
   const sel = window.getSelection()
-  if (!sel || !sel.isCollapsed || !sel.rangeCount) return false
+  if (!sel || !sel.rangeCount) return null
   const range = sel.getRangeAt(0)
-  if (!el.contains(range.startContainer)) return false
-  const rest = document.createRange()
-  rest.selectNodeContents(el)
-  if (dir === 'ArrowUp') rest.setEnd(range.startContainer, range.startOffset)
-  else rest.setStart(range.endContainer, range.endOffset)
-  if (rest.toString().replace(/[\s\u200b]/g, '')) return false
+  if (!el.contains(range.startContainer)) return null
   const caret = range.getClientRects()[0] || range.getBoundingClientRect()
   const all = document.createRange()
   all.selectNodeContents(el)
   const lines = all.getClientRects()
-  if (!lines.length || !caret.height) return true
+  const onEdge = !lines.length || !caret.height
   const line = dir === 'ArrowUp' ? lines[0] : lines[lines.length - 1]
-  // 光标矩形比行盒矮（行高 190% 时差十几 px），按行高的一半判断是否就在首 / 末行
-  const slack = Math.max(6, line.height * 0.6)
-  return dir === 'ArrowUp' ? caret.top - line.top < slack : line.bottom - caret.bottom < slack
+  if (!onEdge && line) {
+    // 光标矩形比行盒矮（行高 190% 时差十几 px），按行高的一半判断是否就在这一行
+    const slack = Math.max(6, line.height * 0.6)
+    const hit = dir === 'ArrowUp' ? caret.top - line.top < slack : line.bottom - caret.bottom < slack
+    if (!hit) return null
+  }
+  return { x: caret.left + caret.width / 2, y: caret.top + caret.height / 2 }
 }
 
 const isVisible = (el: HTMLElement): boolean => {
@@ -312,41 +311,27 @@ export function installArrowNav() {
     if (!ARROWS.has(event.key) && !isHomeEnd) return
 
     const control = target ?? active
+    const dir = event.key as Arrow
+    const vertical = dir === 'ArrowUp' || dir === 'ArrowDown'
 
+    let edgePoint: { x: number; y: number } | null = null
     if (isHomeEnd) {
       if (keepsHorizontalArrows(control)) return
-    } else {
-      const vertical = event.key === 'ArrowUp' || event.key === 'ArrowDown'
-      if (control && (vertical ? keepsVerticalArrows(control) : keepsHorizontalArrows(control))) {
-        const dir = event.key as Arrow
-        const leaves = vertical
-          ? control.isContentEditable && atEditableEdge(control, dir)
-          : atInputEdge(control, dir)
-        if (!leaves) {
+    } else if (control && (vertical ? keepsVerticalArrows(control) : keepsHorizontalArrows(control))) {
+      if (vertical) {
+        edgePoint = control.isContentEditable ? editableEdgePoint(control, dir) : null
+        if (!edgePoint) {
           // 文本控件内保留原生光标 / 选项移动；搜索框 ↓ 进入结果列表
           if (event.key !== 'ArrowDown' || !target?.closest('.search-box')) return
-          const scope = scopeOf(target)
-          const first = collect(scope).find((el) => RESULT_ROWS.some((cls) => el.classList.contains(cls)))
+          const first = collect(scopeOf(target)).find((el) => RESULT_ROWS.some((cls) => el.classList.contains(cls)))
           if (!first) return
           event.preventDefault()
           moveTo(first)
           return
         }
-        if (vertical) {
-          // 正文顶到首行 / 末行时：↑ 回到章节标题，↓ 落到字数状态栏
-          const landing = collect(scopeOf(control))
-            .filter((el) => !isLayoutChrome(el))
-            .find((el) =>
-              dir === 'ArrowUp'
-                ? el.classList.contains('chapter-title-input')
-                : el.closest('.editor-status-bar') && el !== control,
-            )
-          if (!landing) return
-          event.preventDefault()
-          moveTo(landing)
-          return
-        }
-        // 单行输入框光标到端点后，左右键交给全站导航
+      } else if (!atInputEdge(control, dir)) {
+        // 单行输入框光标没到端点：左右键保留原生光标移动
+        return
       }
     }
 
@@ -399,18 +384,32 @@ export function installArrowNav() {
       return
     }
 
-    const dir = event.key as Arrow
-
+    // 正文首 / 末行（或 Esc）用光标位置当起点，其余用控件中心
     const next =
       dir === 'ArrowLeft' || dir === 'ArrowRight'
         ? pickHorizontal(current, list, dir)
-        : bestInDirection(centerOf(current), list, dir, current)
+        : bestInDirection(edgePoint ?? centerOf(current), list, dir, current)
     if (!next) {
       // 弹层里走到头不再带动背景滚动
       if (scope !== document.body && (dir === 'ArrowUp' || dir === 'ArrowDown')) event.preventDefault()
       return
     }
     event.preventDefault()
+    moveTo(next)
+  }
+
+  // 编辑器（Tiptap）自己会 preventDefault Escape，冒泡阶段就轮不到我们了，所以捕获阶段先处理
+  const onEscapeCapture = (event: KeyboardEvent) => {
+    if (event.key !== 'Escape' || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.isComposing) return
+    const el = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    if (!el?.isContentEditable) return
+    if (scopeOf(el) !== document.body) return
+    const list = collect(scopeOf(el)).filter((item) => !isLayoutChrome(item))
+    const rect = el.getBoundingClientRect()
+    const next = bestInDirection({ x: rect.left + Math.min(140, rect.width / 2), y: rect.top + 6 }, list, 'ArrowUp', el)
+    if (!next) return
+    event.preventDefault()
+    event.stopPropagation()
     moveTo(next)
   }
 
@@ -422,9 +421,11 @@ export function installArrowNav() {
   }
 
   window.addEventListener('keydown', onKeyDown)
+  window.addEventListener('keydown', onEscapeCapture, true)
   window.addEventListener('focusin', onFocusIn)
   return () => {
     window.removeEventListener('keydown', onKeyDown)
+    window.removeEventListener('keydown', onEscapeCapture, true)
     window.removeEventListener('focusin', onFocusIn)
   }
 }

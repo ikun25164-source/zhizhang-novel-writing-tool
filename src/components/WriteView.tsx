@@ -2,7 +2,7 @@ import { useEffect, useMemo } from 'react'
 import { ChevronLeft, ChevronRight, FileText, ListTree, PanelRightClose, PenLine, Plus, Sparkles } from 'lucide-react'
 import { useApp } from '../store'
 import { extractMentions } from '../lib/tiptap'
-import { cx, formatNumber, sortByOrder, statusLabel } from '../lib/utils'
+import { cx, formatNumber, inertAttr, sortByOrder, statusLabel } from '../lib/utils'
 import { useIsNarrow } from '../lib/useMedia'
 import ChapterTree from './ChapterTree'
 import NovelEditor from './NovelEditor'
@@ -89,6 +89,7 @@ export default function WriteView() {
           !leftOpen && 'is-collapsed',
           mobileSheet === 'left' && 'mobile-open',
         )}
+        {...inertAttr(mobileSheet !== 'left' && (narrow || !leftOpen))}
       >
         <ChapterTree />
       </aside>
@@ -224,7 +225,7 @@ export default function WriteView() {
       {!narrow && (
         <>
           <PanelEdge side="right" label="创作联动" />
-          <aside className={cx('side-panel right-panel', !rightOpen && 'is-collapsed')}>
+          <aside className={cx('side-panel right-panel', !rightOpen && 'is-collapsed')} {...inertAttr(mobileSheet !== 'right' && (narrow || !rightOpen))}>
             <AssocHead title={chapter ? chapter.title : '—'} onClose={closeRight} />
             <AssociationPanel />
           </aside>

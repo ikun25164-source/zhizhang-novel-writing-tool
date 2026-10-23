@@ -16,7 +16,8 @@ import { isNavActivation } from '../lib/arrowNav'
 import type { MapDoc } from '../types'
 import { api } from '../lib/api'
 import { prepareImage } from '../lib/image'
-import { clamp, cx, formatDate, mediaUrl, nextOrder, uid } from '../lib/utils'
+import { clamp, cx, formatDate, inertAttr, mediaUrl, nextOrder, uid } from '../lib/utils'
+import { useIsNarrow } from '../lib/useMedia'
 import { PlaceDetail } from './details'
 import PanelEdge from './PanelEdge'
 import { Confirm, Empty } from './ui'
@@ -190,11 +191,41 @@ function MapCanvas({ map, addMode, onAdd }: { map: MapDoc; addMode: boolean; onA
     }
   }
 
+  const centerZoom = (delta: number) => {
+    const rect = stageRef.current?.getBoundingClientRect()
+    zoomAt(zoomRef.current + delta, (rect?.left || 0) + size.w / 2, (rect?.top || 0) + size.h / 2)
+  }
+
   return (
     <div className="map-stage-wrap">
       <div
         ref={stageRef}
         className={cx('map-stage', dragging && 'dragging')}
+        tabIndex={0}
+        aria-label="地图画布：方向键平移，加号减号缩放，0 适应窗口，Tab 到地点标记"
+        onKeyDown={(event) => {
+          const step = event.shiftKey ? 160 : 60
+          const move: Record<string, [number, number]> = {
+            ArrowLeft: [step, 0],
+            ArrowRight: [-step, 0],
+            ArrowUp: [0, step],
+            ArrowDown: [0, -step],
+          }
+          if (move[event.key]) {
+            event.preventDefault()
+            const [dx, dy] = move[event.key]
+            setPan((current) => ({ x: current.x + dx, y: current.y + dy }))
+          } else if (event.key === '+' || event.key === '=') {
+            event.preventDefault()
+            centerZoom(0.2)
+          } else if (event.key === '-' || event.key === '_') {
+            event.preventDefault()
+            centerZoom(-0.2)
+          } else if (event.key === '0') {
+            event.preventDefault()
+            fit()
+          }
+        }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -258,6 +289,7 @@ function MapCanvas({ map, addMode, onAdd }: { map: MapDoc; addMode: boolean; onA
 }
 
 export default function MapsView() {
+  const narrow = useIsNarrow()
   const maps = useApp((s) => s.maps)
   const places = useApp((s) => s.places)
   const events = useApp((s) => s.events)
@@ -344,6 +376,7 @@ export default function MapsView() {
           !leftOpen && 'is-collapsed',
           mobileSheet === 'left' && 'mobile-open',
         )}
+        {...inertAttr(mobileSheet !== 'left' && (narrow || !leftOpen))}
       >
         <div className="panel-head">
           <div className="panel-title">
@@ -452,6 +485,7 @@ export default function MapsView() {
           !rightOpen && 'is-collapsed',
           mobileSheet === 'right' && 'mobile-open',
         )}
+        {...inertAttr(mobileSheet !== 'right' && (narrow || !rightOpen))}
       >
         <div className="panel-head">
           <div className="panel-title">

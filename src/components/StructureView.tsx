@@ -3,7 +3,8 @@ import { BookOpen, ChevronDown, ListTree, Plus, ScrollText } from 'lucide-react'
 import { useApp } from '../store'
 import { isNavActivation } from '../lib/arrowNav'
 import type { OutlineNode, Volume } from '../types'
-import { cx, sortByOrder } from '../lib/utils'
+import { cx, inertAttr, sortByOrder } from '../lib/utils'
+import { useIsNarrow } from '../lib/useMedia'
 import { OutlineDetail } from './details'
 import PanelEdge from './PanelEdge'
 import { Dropdown, Empty, Modal } from './ui'
@@ -19,6 +20,8 @@ export default function StructureView() {
   const leftOpen = useApp((s) => s.leftOpen)
   const createChapter = useApp((s) => s.createChapter)
   const addVolume = useApp((s) => s.addVolume)
+
+  const narrow = useIsNarrow()
 
   const [volumeOpen, setVolumeOpen] = useState(false)
   const [volumeTitle, setVolumeTitle] = useState('')
@@ -74,6 +77,7 @@ export default function StructureView() {
           !leftOpen && 'is-collapsed',
           mobileSheet === 'left' && 'mobile-open',
         )}
+        {...inertAttr(mobileSheet !== 'left' && (narrow || !leftOpen))}
       >
         <div className="panel-head">
           <div className="panel-title">
@@ -117,6 +121,8 @@ export default function StructureView() {
                     <button
                       className="top-icon"
                       style={{ width: 20, height: 26, marginLeft: 4 }}
+                      title={`${isCollapsed ? '展开' : '收起'}${volumeOutline.title}`}
+                      aria-expanded={!isCollapsed}
                       onClick={() => setCollapsed((state) => ({ ...state, [volumeOutline.id]: !state[volumeOutline.id] }))}
                     >
                       <ChevronDown

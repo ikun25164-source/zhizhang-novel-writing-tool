@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react'
 import { Plus, Search, UserRound, Users } from 'lucide-react'
 import { useApp } from '../store'
 import { isNavActivation } from '../lib/arrowNav'
-import { cx, mediaUrl } from '../lib/utils'
+import { cx, inertAttr, mediaUrl } from '../lib/utils'
+import { useIsNarrow } from '../lib/useMedia'
 import { CharacterDetail } from './details'
 import PanelEdge from './PanelEdge'
 import { Empty } from './ui'
@@ -15,6 +16,7 @@ export default function CharactersView() {
   const mobileSheet = useApp((s) => s.mobileSheet)
   const leftOpen = useApp((s) => s.leftOpen)
   const setMobileSheet = useApp((s) => s.setMobileSheet)
+  const narrow = useIsNarrow()
   const [query, setQuery] = useState('')
 
   const selected = characters.find((character) => character.id === selectedCharacterId) || characters[0] || null
@@ -42,6 +44,7 @@ export default function CharactersView() {
           !leftOpen && 'is-collapsed',
           mobileSheet === 'left' && 'mobile-open',
         )}
+        {...inertAttr(mobileSheet !== 'left' && (narrow || !leftOpen))}
       >
         <div className="panel-head">
           <div className="panel-title">
