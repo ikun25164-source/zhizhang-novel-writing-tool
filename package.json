@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "description": "织章 · 本地优先的小说创作工作台",
   "author": "织章",
+  "license": "AGPL-3.0-or-later",
   "type": "module",
   "main": "electron/main.js",
   "scripts": {
