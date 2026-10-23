@@ -8,9 +8,9 @@
 
 到 [Releases](https://github.com/ikun25164-source/zhizhang-novel-writing-tool/releases) 下载最新版本：
 
-- `织章-1.0.0-安装包.exe`：Windows 安装版，带开始菜单 / 桌面快捷方式和卸载程序。
-- `织章-1.0.0-便携版.exe`：Windows 单文件便携版，双击即用，免安装。
-- `织章-1.0.0.apk`：Android 安装包。
+- `zhizhang-1.0.0-setup.exe`：Windows 安装版，带开始菜单 / 桌面快捷方式和卸载程序。
+- `zhizhang-1.0.0-portable.exe`：Windows 单文件便携版，双击即用，免安装。
+- `zhizhang-1.0.0.apk`：Android 安装包。
 
 安装版与便携版共用 `%APPDATA%\织章\data` 数据目录，并占用同一个本地端口，不能同时运行。
 
