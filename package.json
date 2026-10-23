@@ -76,6 +76,9 @@
       "build/icon.png",
       "package.json"
     ],
+    "extraResources": [
+      "LICENSE"
+    ],
     "win": {
       "icon": "build/icon.ico",
       "target": [
