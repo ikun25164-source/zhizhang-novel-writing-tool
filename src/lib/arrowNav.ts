@@ -28,6 +28,13 @@ export const isNavActivation = () => activating
 const inputType = (el: HTMLElement) => (el instanceof HTMLInputElement ? el.type : '')
 
 // 上下键：多行文本、下拉、富文本、数字/日期/滑杆保留原生行为，单行输入框允许离开
+const isTextControl = (el: HTMLElement): boolean => {
+  if (el.isContentEditable) return true
+  if (el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') return true
+  if (el.tagName === 'INPUT') return !PLAIN_INPUTS.has(inputType(el))
+  return false
+}
+
 const keepsVerticalArrows = (el: HTMLElement | null): boolean => {
   if (!el) return false
   if (el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') return true
@@ -95,6 +102,55 @@ const collect = (scope: HTMLElement): HTMLElement[] =>
 const centerOf = (el: HTMLElement) => {
   const rect = el.getBoundingClientRect()
   return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
+}
+
+const overlaps = (a1: number, a2: number, b1: number, b2: number) => Math.min(a2, b2) - Math.max(a1, b1) > 2
+
+const REGIONS = '.side-panel, .center-pane, .topbar, .bottom-nav, .modal-mask, .peek-drawer, .menu-pop'
+const regionOf = (el: Element) => el.closest<HTMLElement>(REGIONS)
+
+// 左右移动优先落在同一行；同行没有目标时，先找最近的一行，再跳到那一行在前进方向上最远的一项
+const pickHorizontal = (from: HTMLElement, candidates: HTMLElement[], dir: Arrow) => {
+  const base = from.getBoundingClientRect()
+  const mid = (base.top + base.bottom) / 2
+  const forward = dir === 'ArrowRight'
+  const side = (el: HTMLElement) => Math.abs(centerOf(el).y - mid)
+  const ahead = candidates.filter((el) => {
+    const rect = el.getBoundingClientRect()
+    if (!(forward ? rect.right > base.right + 2 : rect.left < base.left - 2)) return false
+    // 视图切换项只有在同一栏（桌面顶栏、手机底栏）内才参与左右移动，避免内容区按键误触换页
+    return !isViewNav(el) || overlaps(base.top, base.bottom, rect.top, rect.bottom)
+  })
+  if (!ahead.length) return null
+
+  const sameRow = ahead.filter((el) => {
+    const rect = el.getBoundingClientRect()
+    return overlaps(base.top, base.bottom, rect.top, rect.bottom)
+  })
+  if (sameRow.length) {
+    let pick: HTMLElement | null = null
+    let bestScore = Infinity
+    for (const el of sameRow) {
+      const rect = el.getBoundingClientRect()
+      const gap = forward ? rect.left - base.right : base.left - rect.right
+      const score = gap + side(el) * 1.8
+      if (score < bestScore) {
+        bestScore = score
+        pick = el
+      }
+    }
+    return pick
+  }
+
+  // 同行没有目标时先在同一栏（目录 / 正文 / 侧栏）里找，别一路横跨到别的面板
+  const region = regionOf(from)
+  const around = region ? ahead.filter((el) => regionOf(el) === region) : []
+  const pool = around.length ? around : ahead
+
+  let nearest = Infinity
+  for (const el of pool) nearest = Math.min(nearest, side(el))
+  const row = pool.filter((el) => side(el) <= nearest + 24)
+  return row.reduce((best, el) => (forward ? centerOf(el).x > centerOf(best).x : centerOf(el).x < centerOf(best).x) ? el : best)
 }
 
 function bestInDirection(from: { x: number; y: number }, list: HTMLElement[], dir: Arrow, current: HTMLElement | null) {
@@ -235,6 +291,16 @@ export function installArrowNav() {
     if (!current && cursor && cursor.isConnected && list.includes(cursor)) current = cursor
 
     if (!current) {
+      // 点完列表项后抽屉收起，焦点还挂在隐藏的元素上：把焦点送回可见内容，而不是当成“没有焦点”去换视图
+      if (active && active !== document.body && !isVisible(active)) {
+        event.preventDefault()
+        const landing =
+          list.find((el) => el.closest('.center-pane') && !isTextControl(el)) ??
+          list.find((el) => el.closest('.center-pane')) ??
+          list[0]
+        if (landing) moveTo(landing)
+        return
+      }
       // 弹窗 / 下拉菜单已打开但焦点还在外面：先把焦点送进去
       if (scope !== document.body) {
         event.preventDefault()
@@ -276,7 +342,10 @@ export function installArrowNav() {
       return
     }
 
-    const next = bestInDirection(centerOf(current), list, dir, current)
+    const next =
+      dir === 'ArrowLeft' || dir === 'ArrowRight'
+        ? pickHorizontal(current, list, dir)
+        : bestInDirection(centerOf(current), list, dir, current)
     if (!next) {
       // 弹层里走到头不再带动背景滚动
       if (scope !== document.body && (dir === 'ArrowUp' || dir === 'ArrowDown')) event.preventDefault()
