@@ -80,7 +80,11 @@ export default function PanelEdge({ side, label }: { side: 'left' | 'right'; lab
         document.documentElement.classList.remove('panel-anim')
       }}
       onDoubleClick={() => setPanelWidth(side, side === 'left' ? 264 : 306)}
-    />
+    >
+      <span className="edge-tip" aria-hidden="true">
+        {label}宽度 · ←/→ 调整
+      </span>
+    </div>
   )
 }
 

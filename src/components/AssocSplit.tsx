@@ -205,7 +205,10 @@ export default function AssocSplit({
           onPointerCancel={stop}
           onDoubleClick={() => setHeight(defaultHeight())}
         >
-          <span />
+          <span className="grip-bar" />
+          <span className="edge-tip" aria-hidden="true">
+            联动栏高度 · ↑/↓ 调整
+          </span>
         </div>
         {children}
       </div>

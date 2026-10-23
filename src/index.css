@@ -165,6 +165,13 @@ select {
   outline-offset: 2px;
 }
 
+/* 单行输入框拿到键盘焦点时也要有环：空输入框只有一个光标，看不出选中了哪个字段 */
+input:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
 .chapter-item:focus-visible,
 .char-row:focus-visible,
 .outline-node:focus-visible,
@@ -1273,8 +1280,9 @@ body.is-resizing .side-panel {
   justify-content: center;
   cursor: row-resize;
   touch-action: none;
+  position: relative;
 }
-.assoc-split-grip span {
+.assoc-split-grip .grip-bar {
   width: 44px;
   height: 4px;
   border-radius: 999px;
@@ -1284,22 +1292,51 @@ body.is-resizing .side-panel {
     width 0.16s ease,
     background-color 0.16s ease;
 }
-.assoc-split-grip:active span,
-.assoc-split-grip.is-active span {
+.assoc-split-grip:active .grip-bar,
+.assoc-split-grip.is-active .grip-bar {
   width: 58px;
   background: var(--accent);
   opacity: 1;
 }
-/* 同拖拽条：整条 18px 高的矩形焦点框认不出选中了啥，只点亮中间的手柄 */
+/* 同拖拽条：整条 18px 高的矩形焦点框认不出选中了啥，只点亮中间的手柄并自报家门 */
 .assoc-split-grip:focus-visible {
   outline: none;
 }
-.assoc-split-grip:focus-visible span {
+.assoc-split-grip:focus-visible .grip-bar {
   width: 58px;
   background: var(--accent);
   opacity: 1;
   outline: 2px solid var(--accent);
   outline-offset: 4px;
+}
+/* 拖拽条 / 把手本身几乎不可见，聚焦时补一个说明标签，否则只剩一个空心的环 */
+.edge-tip {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 6;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--paper);
+  font-family: var(--sans);
+  font-size: 10.5px;
+  font-weight: 500;
+  line-height: 1.7;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.14s ease;
+}
+.panel-resizer .edge-tip {
+  transform: translate(-50%, 40px);
+}
+.assoc-split-grip .edge-tip {
+  transform: translate(-50%, -30px);
+}
+.panel-resizer:focus-visible .edge-tip,
+.assoc-split-grip:focus-visible .edge-tip {
+  opacity: 1;
 }
 body.is-resizing-v {
   cursor: row-resize;
@@ -1370,7 +1407,9 @@ body.is-resizing-v .assoc-split {
   opacity: 0;
   transition: opacity 0.15s;
 }
-.volume-head:hover .volume-nav {
+/* 只在 hover 时出现的按钮，键盘走到跟前时必须一起亮起来，否则焦点环就是悬空的 */
+.volume-head:hover .volume-nav,
+.volume-head:focus-within .volume-nav {
   opacity: 1;
 }
 .chapter-item {
@@ -1429,7 +1468,8 @@ body.is-resizing-v .assoc-split {
   opacity: 0;
 }
 .chapter-item:hover .chapter-more,
-.chapter-item.active .chapter-more {
+.chapter-item.active .chapter-more,
+.chapter-item:focus-within .chapter-more {
   opacity: 1;
 }
 .tree-add {
@@ -2274,7 +2314,8 @@ html[data-keyboard="open"] .side-panel .panel-foot {
   justify-content: center;
   gap: 4px;
 }
-.tl-cell:hover .tl-add {
+.tl-cell:hover .tl-add,
+.tl-cell:focus-within .tl-add {
   opacity: 1;
 }
 .tl-add:hover {
