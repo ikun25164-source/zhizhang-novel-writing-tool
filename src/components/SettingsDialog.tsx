@@ -16,18 +16,10 @@ import {
 } from 'lucide-react'
 import { useApp } from '../store'
 import { api } from '../lib/api'
-import { copyText, formatNumber, saveBlob, sortByOrder } from '../lib/utils'
+import { copyText, formatNumber, saveBlob } from '../lib/utils'
+import { buildManuscript, openExternal, PUBLISH_PLATFORMS } from '../lib/publish'
 import type { SyncConfig, SyncInput, SyncMethod, SyncResult } from '../types'
 import { Confirm, Field, Modal, Segmented, Toggle } from './ui'
-
-const PUBLISH_PLATFORMS = [
-  { name: '阅文作家专区', sub: '起点 / QQ阅读 / 创世', url: 'https://write.qq.com/' },
-  { name: '番茄作家专区', sub: 'fanqienovel', url: 'https://fanqienovel.com/writer/zone' },
-  { name: '七猫作者专区', sub: 'zuozhe.qimao', url: 'https://zuozhe.qimao.com/' },
-  { name: '晋江作者专区', sub: 'jjwxc', url: 'https://my.jjwxc.net/' },
-  { name: '纵横作者专区', sub: 'zuozhe.zongheng', url: 'https://zuozhe.zongheng.com/' },
-  { name: '刺猬猫作者平台', sub: 'author.ciweimao', url: 'https://author.ciweimao.com/' },
-]
 
 function readFileAsBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -138,33 +130,8 @@ export default function SettingsDialog() {
     }
   }
 
-  const buildManuscript = () => {
-    const ordered = sortByOrder(chapters)
-    const blocks: string[] = [`《${project.title}》${project.author ? `\n作者：${project.author}` : ''}`]
-    const emitted = new Set<string>()
-    let count = 0
-    let words = 0
-    const bodyOf = (id: string) => (contents[id]?.plainText || '').trim()
-    const push = (chapter: (typeof ordered)[number]) => {
-      const body = bodyOf(chapter.id)
-      if (!body) return
-      blocks.push(`${chapter.title}\n\n${body}`)
-      emitted.add(chapter.id)
-      count += 1
-      words += body.replace(/\s+/g, '').length
-    }
-    for (const volume of sortByOrder(volumes)) {
-      const inVolume = ordered.filter((chapter) => chapter.volumeId === volume.id)
-      if (!inVolume.some((chapter) => bodyOf(chapter.id))) continue
-      blocks.push(volume.title)
-      inVolume.forEach(push)
-    }
-    ordered.filter((chapter) => !emitted.has(chapter.id)).forEach(push)
-    return { text: blocks.join('\n\n'), count, words }
-  }
-
   const copyFull = async () => {
-    const { text, count, words } = buildManuscript()
+    const { text, count, words } = buildManuscript(project, volumes, chapters, contents)
     if (!count) {
       toast('还没有写好的正文，无法复制')
       return false
@@ -178,19 +145,14 @@ export default function SettingsDialog() {
     return true
   }
 
-  const openPlatform = async (platform: { name: string; url: string }) => {    const copied = await copyFull()
+  const openPlatform = async (platform: { name: string; url: string }) => {
+    const copied = await copyFull()
     toast(copied ? `正在打开${platform.name}，登录作家专区后粘贴` : `正在打开${platform.name}`)
     try {
-      if (native) {
-        const { Browser } = await import('@capacitor/browser')
-        await Browser.open({ url: platform.url, presentationStyle: 'fullscreen' })
-        return
-      }
+      await openExternal(platform.url, native)
     } catch {
       toast('无法打开浏览器，请手动访问 ' + platform.url)
-      return
     }
-    window.open(platform.url, '_blank', 'noopener,noreferrer')
   }
 
   const setSettings = (patch: Partial<typeof settings>) => updateMeta({ settings: { ...settings, ...patch } })

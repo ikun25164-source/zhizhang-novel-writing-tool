@@ -4,6 +4,7 @@ import { useApp } from '../store'
 import type { ViewName } from '../types'
 import { cx, formatNumber } from '../lib/utils'
 import { useIsNarrow } from '../lib/useMedia'
+import PublishMenu from './PublishMenu'
 
 const VIEWS: Array<{ key: ViewName; label: string; icon: ReactNode }> = [
   { key: 'write', label: '写作', icon: <PenIcon /> },
@@ -139,6 +140,7 @@ export default function TopBar() {
       </nav>
 
       <div className="top-actions">
+        <PublishMenu />
         <button className="top-icon" title="全局搜索 (Ctrl/⌘ K)" onClick={() => setSearchOpen(true)}>
           <Search size={17} />
         </button>
