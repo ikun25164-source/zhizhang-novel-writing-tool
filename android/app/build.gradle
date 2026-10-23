@@ -35,6 +35,11 @@ android {
         }
     }
     buildTypes {
+        debug {
+            // 与发布包同签名：调试时可直接覆盖安装，保留平板上的本机作品数据
+            signingConfig signingConfigs.release
+            minifyEnabled false
+        }
         release {
             minifyEnabled false
             signingConfig signingConfigs.release
