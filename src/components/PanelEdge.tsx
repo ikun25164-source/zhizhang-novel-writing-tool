@@ -1,7 +1,7 @@
 import { useRef } from 'react'
 import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from 'lucide-react'
 import { useApp } from '../store'
-import { cx } from '../lib/utils'
+import { cx, inertAttr, panelLimits } from '../lib/utils'
 
 export default function PanelEdge({ side, label }: { side: 'left' | 'right'; label: string }) {
   const open = useApp((s) => (side === 'left' ? s.leftOpen : s.rightOpen))
@@ -26,7 +26,7 @@ export default function PanelEdge({ side, label }: { side: 'left' | 'right'; lab
     )
   }
 
-  const limits = side === 'left' ? [190, 420, 264] : [230, 460, 306]
+  const limits = panelLimits(side, window.innerWidth)
   const nudge = (delta: number) => setPanelWidth(side, width + delta)
 
   return (
@@ -79,7 +79,7 @@ export default function PanelEdge({ side, label }: { side: 'left' | 'right'; lab
         document.body.classList.remove('is-resizing')
         document.documentElement.classList.remove('panel-anim')
       }}
-      onDoubleClick={() => setPanelWidth(side, side === 'left' ? 264 : 306)}
+      onDoubleClick={() => setPanelWidth(side, limits[2])}
     >
       <span className="edge-tip" aria-hidden="true">
         {label}宽度 · ←/→ 调整

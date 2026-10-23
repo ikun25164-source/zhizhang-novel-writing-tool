@@ -23,7 +23,7 @@ import type {
   Volume,
 } from './types'
 import { api, ApiError } from './lib/api'
-import { countWords, isNativeApp, nextOrder, timelinePalette, uid } from './lib/utils'
+import { countWords, isNativeApp, nextOrder, panelLimits, timelinePalette, uid } from './lib/utils'
 import { EMPTY_DOC } from './lib/tiptap'
 import { defaultEventTime } from './lib/time'
 
@@ -1301,8 +1301,8 @@ export const useApp = create<AppState>((set, get) => ({
     set({ leftOpen: open })
   },
   setPanelWidth: (side, width) => {
-    const limits = side === 'left' ? [190, 420] : [230, 460]
-    const next = Math.min(limits[1], Math.max(limits[0], Math.round(width)))
+    const [minW, maxW] = panelLimits(side, typeof window === 'undefined' ? 1920 : window.innerWidth)
+    const next = Math.min(maxW, Math.max(minW, Math.round(width)))
     const state = get()
     if (state[side === 'left' ? 'leftWidth' : 'rightWidth'] === next) return
     try {

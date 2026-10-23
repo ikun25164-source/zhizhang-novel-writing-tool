@@ -150,6 +150,18 @@ export function timelinePalette(): string[] {
   return ['#1f2124', '#5a5f65', '#8f9398', '#b9bcc0', '#3d4045', '#74787e', '#a3a7ac']
 }
 
+/**
+ * 侧栏宽度的 [最小, 最大, 默认]。
+ * CSS 里面板最宽只有 26vw / 30vw，状态若允许超过它，画面就不再变化，
+ * 拖拽条和它的键盘操作会"看起来坏了"，所以上限要跟着视口走。
+ */
+export function panelLimits(side: 'left' | 'right', viewportWidth = 1920): [number, number, number] {
+  const hard = side === 'left' ? [190, 420, 264] : [230, 460, 306]
+  const cap = Math.floor(viewportWidth * (side === 'left' ? 0.26 : 0.3))
+  const max = Math.max(hard[0], Math.min(hard[1], cap))
+  return [hard[0], max, Math.min(hard[2], max)]
+}
+
 /** React 18 的类型里还没有 inert，浏览器运行时已支持：收起的面板用它移出 Tab 顺序 */
 export function inertAttr(hidden: boolean): { inert?: '' } {
   return hidden ? { inert: '' } : {}
