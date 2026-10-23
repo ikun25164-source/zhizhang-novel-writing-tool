@@ -50,6 +50,37 @@ const keepsHorizontalArrows = (el: HTMLElement | null): boolean => {
   return el.isContentEditable
 }
 
+const FREE_TEXT_INPUTS = new Set(['', 'text', 'search', 'email', 'url', 'tel', 'password'])
+
+// 单行输入框的光标顶到首 / 尾时，再按同一个方向就离开输入框，避免键盘卡在输入框里
+const atInputEdge = (el: HTMLElement | null, dir: Arrow): boolean => {
+  if (!(el instanceof HTMLInputElement) || !FREE_TEXT_INPUTS.has(el.type)) return false
+  const start = el.selectionStart
+  const end = el.selectionEnd
+  if (start === null || end === null || start !== end) return false
+  return dir === 'ArrowLeft' ? start === 0 : start === el.value.length
+}
+
+// 富文本里光标停在整篇首 / 末行时，↑ / ↓ 允许离开编辑器
+const atEditableEdge = (el: HTMLElement, dir: Arrow): boolean => {
+  const sel = window.getSelection()
+  if (!sel || !sel.isCollapsed || !sel.rangeCount) return false
+  const range = sel.getRangeAt(0)
+  if (!el.contains(range.startContainer)) return false
+  const rest = document.createRange()
+  rest.selectNodeContents(el)
+  if (dir === 'ArrowUp') rest.setEnd(range.startContainer, range.startOffset)
+  else rest.setStart(range.endContainer, range.endOffset)
+  if (rest.toString().replace(/[\s\u200b]/g, '')) return false
+  const caret = range.getClientRects()[0] || range.getBoundingClientRect()
+  const all = document.createRange()
+  all.selectNodeContents(el)
+  const lines = all.getClientRects()
+  if (!lines.length || !caret.height) return true
+  const line = dir === 'ArrowUp' ? lines[0] : lines[lines.length - 1]
+  return dir === 'ArrowUp' ? caret.top <= line.top + 2 : caret.bottom >= line.bottom - 2
+}
+
 const isVisible = (el: HTMLElement): boolean => {
   if (el.closest('[inert], [aria-hidden="true"]')) return false
   if (typeof el.checkVisibility === 'function') {
@@ -109,12 +140,16 @@ const overlaps = (a1: number, a2: number, b1: number, b2: number) => Math.min(a2
 const REGIONS = '.side-panel, .center-pane, .topbar, .bottom-nav, .modal-mask, .peek-drawer, .menu-pop'
 const regionOf = (el: Element) => el.closest<HTMLElement>(REGIONS)
 
-// 左右移动优先落在同一行；同行没有目标时，先找最近的一行，再跳到那一行在前进方向上最远的一项
+// 横向工具条：左右键只在本行内移动，走到头停下，不掉进上下别的行
+const ROW_BARS = '.topbar, .bottom-nav, .panel-head, .editor-top, .editor-toolbar, .mini-toolbar, .view-head, .timeline-toolbar, .map-toolbar, .editor-status-bar'
+
+// 左右移动优先落在同一行的同一栏（顶栏 / 目录 / 正文 / 侧栏）；同行没有目标时，找最近的一行再跳到那一行最远的一项
 const pickHorizontal = (from: HTMLElement, candidates: HTMLElement[], dir: Arrow) => {
   const base = from.getBoundingClientRect()
   const mid = (base.top + base.bottom) / 2
   const forward = dir === 'ArrowRight'
   const side = (el: HTMLElement) => Math.abs(centerOf(el).y - mid)
+  const region = regionOf(from)
   const ahead = candidates.filter((el) => {
     const rect = el.getBoundingClientRect()
     if (!(forward ? rect.right > base.right + 2 : rect.left < base.left - 2)) return false
@@ -125,7 +160,7 @@ const pickHorizontal = (from: HTMLElement, candidates: HTMLElement[], dir: Arrow
 
   const sameRow = ahead.filter((el) => {
     const rect = el.getBoundingClientRect()
-    return overlaps(base.top, base.bottom, rect.top, rect.bottom)
+    return overlaps(base.top, base.bottom, rect.top, rect.bottom) && (!region || regionOf(el) === region)
   })
   if (sameRow.length) {
     let pick: HTMLElement | null = null
@@ -142,16 +177,15 @@ const pickHorizontal = (from: HTMLElement, candidates: HTMLElement[], dir: Arrow
     return pick
   }
 
-  // 顶栏/底栏/面板工具条上的左右移动只在本行内进行，走到头就停下，不跨行跳进别的区域
-  if (from.closest('.topbar, .bottom-nav, .panel-head')) return null
+  // 横向工具条上的左右移动只在本行内进行，走到头就停下，不跨行跳进别的区域
+  if (from.closest(ROW_BARS)) return null
 
   // 视图按钮只在本行内移动，走到两端就停下，不再跨行乱跳或首尾循环
   if (isViewNav(from)) return null
 
-  // 同行没有目标时先在同一栏（目录 / 正文 / 侧栏）里找，别一路横跨到别的面板
-  const region = regionOf(from)
-  const around = region ? ahead.filter((el) => regionOf(el) === region) : []
-  const pool = around.length ? around : ahead
+  // 跨行也只在同一栏里找，别从目录一路横跨到正文工具条
+  const pool = region ? ahead.filter((el) => regionOf(el) === region) : ahead
+  if (!pool.length) return null
 
   let nearest = Infinity
   for (const el of pool) nearest = Math.min(nearest, side(el))
@@ -282,14 +316,35 @@ export function installArrowNav() {
     } else {
       const vertical = event.key === 'ArrowUp' || event.key === 'ArrowDown'
       if (control && (vertical ? keepsVerticalArrows(control) : keepsHorizontalArrows(control))) {
-        // 文本控件内保留原生光标 / 选项移动；搜索框 ↓ 进入结果列表
-        if (event.key !== 'ArrowDown' || !target?.closest('.search-box')) return
-        const scope = scopeOf(target)
-        const first = collect(scope).find((el) => RESULT_ROWS.some((cls) => el.classList.contains(cls)))
-        if (!first) return
-        event.preventDefault()
-        moveTo(first)
-        return
+        const dir = event.key as Arrow
+        const leaves = vertical
+          ? control.isContentEditable && atEditableEdge(control, dir)
+          : atInputEdge(control, dir)
+        if (!leaves) {
+          // 文本控件内保留原生光标 / 选项移动；搜索框 ↓ 进入结果列表
+          if (event.key !== 'ArrowDown' || !target?.closest('.search-box')) return
+          const scope = scopeOf(target)
+          const first = collect(scope).find((el) => RESULT_ROWS.some((cls) => el.classList.contains(cls)))
+          if (!first) return
+          event.preventDefault()
+          moveTo(first)
+          return
+        }
+        if (vertical) {
+          // 正文顶到首行 / 末行时：↑ 回到章节标题，↓ 落到字数状态栏
+          const landing = collect(scopeOf(control))
+            .filter((el) => !isLayoutChrome(el))
+            .find((el) =>
+              dir === 'ArrowUp'
+                ? el.classList.contains('chapter-title-input')
+                : el.closest('.editor-status-bar') && el !== control,
+            )
+          if (!landing) return
+          event.preventDefault()
+          moveTo(landing)
+          return
+        }
+        // 单行输入框光标到端点后，左右键交给全站导航
       }
     }
 

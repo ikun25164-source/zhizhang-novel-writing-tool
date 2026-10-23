@@ -3842,8 +3842,9 @@ html[data-ui="glass"] .btn {
   border-color: rgba(22, 24, 27, 0.12);
   background: rgba(255, 255, 255, 0.66);
   box-shadow: 0 1px 2px rgba(18, 19, 21, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.7);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
+  /* 小控件不做 backdrop-filter：非整数 DPR 下按钮会单独降采样，文字和边缘发虚 */
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 html[data-ui="glass"] .btn:hover {
@@ -3999,10 +4000,11 @@ html[data-ui="glass"] .tab.active {
 html[data-ui="glass"] .menu-pop {
   border-color: rgba(255, 255, 255, 0.9);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.86);
+  background: rgba(255, 255, 255, 0.92);
   box-shadow: 0 24px 50px -26px rgba(18, 19, 21, 0.3);
-  -webkit-backdrop-filter: blur(24px) saturate(150%);
-  backdrop-filter: blur(24px) saturate(150%);
+  /* 顶栏本身已经做了 backdrop-filter，再套一层会在安卓 WebView 上出现灰色残影 */
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 html[data-ui="glass"] .publish-wrap .menu-pop {
@@ -4156,9 +4158,10 @@ html[data-ui="glass"] .map-toolbar {
 html[data-ui="glass"] .tl-corner,
 html[data-ui="glass"] .tl-lane-head {
   border-color: var(--line);
-  background: rgba(247, 248, 249, 0.94);
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
+  background: rgba(247, 248, 249, 0.97);
+  /* 底色已接近不透明，去掉 backdrop-filter 免得非整数 DPR 下表头文字发虚 */
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 html[data-ui="glass"] .tl-time {
@@ -4231,18 +4234,19 @@ html[data-ui="glass"] .map-pin .pin-head {
 html[data-ui="glass"] .map-pin .pin-label {
   border-color: rgba(255, 255, 255, 0.8);
   border-radius: 7px;
-  background: rgba(255, 255, 255, 0.82);
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
+  background: rgba(255, 255, 255, 0.9);
+  /* 地图在 .center-pane 的毛玻璃层里，再叠 backdrop-filter 会让标签文字发虚 */
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 html[data-ui="glass"] .map-hint,
 html[data-ui="glass"] .zoom-badge {
   border-color: rgba(255, 255, 255, 0.8);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.7);
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
+  background: rgba(255, 255, 255, 0.82);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 html[data-ui="glass"] .map-thumb {
@@ -4265,10 +4269,11 @@ html[data-ui="glass"] .drawer-mask {
 html[data-ui="glass"] .modal {
   border: 1px solid rgba(255, 255, 255, 0.9);
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.88);
+  background: rgba(255, 255, 255, 0.93);
   box-shadow: 0 40px 100px -40px rgba(15, 16, 18, 0.4);
-  -webkit-backdrop-filter: blur(30px) saturate(150%);
-  backdrop-filter: blur(30px) saturate(150%);
+  /* 遮罩已经模糊过一次，弹窗再叠 backdrop-filter 属于嵌套模糊，安卓 WebView 上会出灰色残影 */
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 html[data-ui="glass"] .modal-head {
@@ -4313,8 +4318,8 @@ html[data-ui="glass"] .toast {
   background: rgba(23, 24, 26, 0.95);
   color: #fff;
   box-shadow: 0 18px 40px -18px rgba(15, 16, 18, 0.5);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 /* ---------- 作品选择 / 连接 / 设置 ---------- */
