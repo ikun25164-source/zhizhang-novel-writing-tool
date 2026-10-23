@@ -1528,6 +1528,21 @@ body.is-resizing-v .assoc-split {
   min-height: 50vh;
   word-break: break-word;
 }
+/* 进入正文编辑时只留一圈淡环，1.8 秒后自动淡出，不再出现整块黑框 */
+.novel-editor .ProseMirror:focus-visible,
+.mini-editor .ProseMirror:focus-visible {
+  outline: none;
+  border-radius: 8px;
+  animation: editor-ring 1.8s ease-out forwards;
+}
+@keyframes editor-ring {
+  from {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--ink) 15%, transparent);
+  }
+  to {
+    box-shadow: 0 0 0 2px transparent;
+  }
+}
 .novel-editor.indent .ProseMirror > p {
   text-indent: 2em;
 }
