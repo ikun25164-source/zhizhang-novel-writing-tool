@@ -37,3 +37,6 @@ android/*.keystore
 .idea/
 .vscode/
 *.iml
+
+# 本地开发记录（含逐轮实测笔记，不对外）
+任务进度.md
