@@ -39,17 +39,21 @@ export default function PanelEdge({ side, label }: { side: 'left' | 'right'; lab
       aria-valuemin={limits[0]}
       aria-valuemax={limits[1]}
       tabIndex={0}
-      title={`拖动或方向键调整${label}宽度，Enter 收起，双击恢复默认`}
+      title={`按住 Shift + 左右方向键调整${label}宽度，Enter 收起，双击恢复默认`}
       onKeyDown={(event) => {
-        const step = event.shiftKey ? 48 : 16
-        const grow = event.key === 'ArrowRight' ? step : event.key === 'ArrowLeft' ? -step : 0
-        if (grow) {
+        if (event.shiftKey && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
           event.preventDefault()
+          const grow = event.key === 'ArrowRight' ? 24 : -24
           nudge(side === 'left' ? grow : -grow)
-        } else if (event.key === 'Home') {
+          return
+        }
+        if (event.shiftKey && event.key === 'Home') {
           event.preventDefault()
           setPanelWidth(side, limits[2])
-        } else if (event.key === 'Enter' || event.key === ' ') {
+          return
+        }
+        // 不按 Shift 的方向键 / Home / End 一律交给全站导航，焦点不会被这条分隔线扣住
+        if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault()
           ;(side === 'left' ? setLeftOpen : setRightOpen)(false)
         }
@@ -82,7 +86,7 @@ export default function PanelEdge({ side, label }: { side: 'left' | 'right'; lab
       onDoubleClick={() => setPanelWidth(side, limits[2])}
     >
       <span className="edge-tip" aria-hidden="true">
-        {label}宽度 · ←/→ 调整
+        {label}宽度 · Shift+←/→ 调整
       </span>
     </div>
   )

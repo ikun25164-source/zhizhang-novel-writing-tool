@@ -161,7 +161,7 @@ function hitBox(el: HTMLElement): DOMRect {
 const overlaps = (a1: number, a2: number, b1: number, b2: number) => Math.min(a2, b2) - Math.max(a1, b1) > 2
 
 // 拖拽条不是按钮而是分隔线，16px 宽、整列高，当成停靠点会把「目录 ↔ 正文」的横向路径堵死。
-// 它仍然可以 Tab 到，聚焦后 ←/→ 调宽、↑/↓ 离开。
+// 它仍然可以 Tab 到；调宽要按住 Shift（在组件里处理），不按 Shift 的方向键就从它就近离开。
 const HANDLE = '.panel-resizer, .assoc-split-grip'
 
 // 严格的横排：顶栏 / 底栏的左右键就是横扫这一排（视图切换也在这里发生），不许掉进内容区
@@ -378,6 +378,8 @@ export function installArrowNav() {
     if (!list.length) return
 
     let current: HTMLElement | null = active && all.includes(active) ? active : null
+    // 焦点停在拖拽条上时，它就是「从哪儿出发」，方向键照常就近跳到别的控件
+    if (!current && active?.matches(HANDLE)) current = active
     if (!current && cursor && cursor.isConnected && all.includes(cursor)) current = cursor
 
     if (!current) {

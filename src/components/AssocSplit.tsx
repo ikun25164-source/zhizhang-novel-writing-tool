@@ -161,21 +161,22 @@ export default function AssocSplit({
           aria-valuemin={MIN}
           aria-valuemax={maxHeight}
           tabIndex={0}
-          title="方向键调整高度，Enter 收起，双击恢复默认"
+          title="按住 Shift + 上下方向键调整高度，Enter 收起，双击恢复默认"
           onKeyDown={(event) => {
-            const step = event.shiftKey ? 72 : 24
-            if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+            if (event.shiftKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
               event.preventDefault()
-              event.stopPropagation()
-              const delta = event.key === 'ArrowUp' ? step : -step
+              const delta = event.key === 'ArrowUp' ? 24 : -24
               setHeight(Math.max(MIN, Math.min(maxHeight, (shell.current?.getBoundingClientRect().height || height) + delta)))
-            } else if (event.key === 'Home') {
+              return
+            }
+            if (event.shiftKey && event.key === 'Home') {
               event.preventDefault()
-              event.stopPropagation()
               setHeight(defaultHeight())
-            } else if (event.key === 'Enter' || event.key === ' ') {
+              return
+            }
+            // 不按 Shift 的上下键照常导航离开，别把焦点关在把手里
+            if (event.key === 'Enter' || event.key === ' ') {
               event.preventDefault()
-              event.stopPropagation()
               onClose()
             }
           }}
@@ -207,7 +208,7 @@ export default function AssocSplit({
         >
           <span className="grip-bar" />
           <span className="edge-tip" aria-hidden="true">
-            联动栏高度 · ↑/↓ 调整
+            联动栏高度 · Shift+↑/↓ 调整
           </span>
         </div>
         {children}

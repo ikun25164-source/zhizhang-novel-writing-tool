@@ -2695,24 +2695,45 @@ html[data-keyboard="open"] .side-panel .panel-foot {
 .map-pin.draft .pin-head {
   animation: pulse 1.4s infinite;
 }
-.map-hint {
+/* 提示条和缩放条共用一条底栏：画布变窄时提示自己折行，不会钻到缩放条底下 */
+.map-foot {
   position: absolute;
   left: 12px;
+  right: 12px;
   bottom: 12px;
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  z-index: 5;
+  pointer-events: none;
+}
+.map-hint {
+  flex: 1 1 auto;
+  min-width: 0;
   font-size: 11px;
+  line-height: 1.45;
   color: var(--ink-2);
   background: color-mix(in srgb, var(--paper) 88%, transparent);
   border: 1px solid var(--line);
   border-radius: 7px;
   padding: 5px 9px;
   backdrop-filter: blur(6px);
-  pointer-events: none;
-  z-index: 5;
+}
+.map-hint .hint-short {
+  display: none;
+}
+/* 平板这一带画布本来就窄，长提示折三行会挡住地图，换成短句 */
+@media (max-width: 1279px) {
+  .map-hint .hint-long {
+    display: none;
+  }
+  .map-hint .hint-short {
+    display: inline;
+  }
 }
 .zoom-badge {
-  position: absolute;
-  right: 12px;
-  bottom: 12px;
+  flex: 0 0 auto;
+  margin-left: auto;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -2721,7 +2742,7 @@ html[data-keyboard="open"] .side-panel .panel-foot {
   border-radius: 7px;
   padding: 3px;
   backdrop-filter: blur(6px);
-  z-index: 5;
+  pointer-events: auto;
 }
 .zoom-badge span {
   font-size: 11px;

@@ -363,22 +363,31 @@ function MapCanvas({
             </div>
           )}
         </div>
-        <div className="map-hint">
-          {addMode
-            ? '方向键移动图钉（按住连发）· Shift+↑/↓ 缩放 · Enter 放下 · Esc 取消'
-            : '拖动 / 方向键平移 · Shift+↑/↓ 或 +/- 缩放 · 0 适应窗口 · 点击或 Tab 到标记查看地点'}
-        </div>
-        <div className="zoom-badge">
-          <button className="top-icon" style={{ width: 26, height: 26 }} title="缩小" aria-label="缩小" onClick={() => zoomAt(zoom - 0.2, (stageRef.current?.getBoundingClientRect().left || 0) + size.w / 2, (stageRef.current?.getBoundingClientRect().top || 0) + size.h / 2)}>
-            <Minus size={13} />
-          </button>
-          <span>{Math.round(zoom * 100)}%</span>
-          <button className="top-icon" style={{ width: 26, height: 26 }} title="放大" aria-label="放大" onClick={() => zoomAt(zoom + 0.2, (stageRef.current?.getBoundingClientRect().left || 0) + size.w / 2, (stageRef.current?.getBoundingClientRect().top || 0) + size.h / 2)}>
-            <Plus size={13} />
-          </button>
-          <button className="top-icon" style={{ width: 26, height: 26 }} onClick={fit} title="适应窗口">
-            <Maximize2 size={13} />
-          </button>
+        <div className="map-foot">
+          <div className="map-hint">
+            <span className="hint-long">
+              {addMode
+                ? '方向键移动图钉（按住连发）· Shift+↑/↓ 缩放 · Enter 放下 · Esc 取消'
+                : '拖动 / 方向键平移 · Shift+↑/↓ 或 +/- 缩放 · 0 适应窗口 · 点击或 Tab 到标记查看地点'}
+            </span>
+            <span className="hint-short">
+              {addMode
+                ? '方向键移动图钉 · Shift+↑/↓ 缩放 · Enter 放下'
+                : '方向键平移 · Shift+↑/↓ 缩放 · 0 适应 · Tab 到标记'}
+            </span>
+          </div>
+          <div className="zoom-badge">
+            <button className="top-icon" style={{ width: 26, height: 26 }} title="缩小" aria-label="缩小" onClick={() => zoomAt(zoom - 0.2, (stageRef.current?.getBoundingClientRect().left || 0) + size.w / 2, (stageRef.current?.getBoundingClientRect().top || 0) + size.h / 2)}>
+              <Minus size={13} />
+            </button>
+            <span>{Math.round(zoom * 100)}%</span>
+            <button className="top-icon" style={{ width: 26, height: 26 }} title="放大" aria-label="放大" onClick={() => zoomAt(zoom + 0.2, (stageRef.current?.getBoundingClientRect().left || 0) + size.w / 2, (stageRef.current?.getBoundingClientRect().top || 0) + size.h / 2)}>
+              <Plus size={13} />
+            </button>
+            <button className="top-icon" style={{ width: 26, height: 26 }} onClick={fit} title="适应窗口">
+              <Maximize2 size={13} />
+            </button>
+          </div>
         </div>
       </div>
     </div>
