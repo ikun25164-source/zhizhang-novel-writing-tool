@@ -159,6 +159,7 @@ select {
     input[type='checkbox'],
     input[type='radio'],
     input[type='range'],
+    summary,
     [tabindex]:not([tabindex='-1'])
   ):focus-visible {
   outline: 2px solid var(--accent);
@@ -181,6 +182,8 @@ textarea:focus-visible {
 .tl-card:focus-visible,
 .search-result:focus-visible,
 .entity-row:focus-visible,
+.assoc-card:focus-visible,
+.detail-section > summary:focus-visible,
 .segment:focus-visible,
 .nav-btn:focus-visible,
 .bottom-btn:focus-visible,

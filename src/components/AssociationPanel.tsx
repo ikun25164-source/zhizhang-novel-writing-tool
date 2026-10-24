@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowUpRight,
   ChevronLeft,
@@ -469,6 +469,7 @@ export default function AssociationPanel() {
   const setMobileSheet = useApp((s) => s.setMobileSheet)
   const [inline, setInline] = useState<InlineRef | null>(null)
   const [inlineStack, setInlineStack] = useState<InlineRef[]>([])
+  const returnFocus = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
     setInline(null)
@@ -527,18 +528,34 @@ export default function AssociationPanel() {
     return [...outlines].sort((a, b) => rank(a) - rank(b) || a.order - b.order)
   }, [outlines])
 
+  const focusSoon = (selector: string) => {
+    requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>(selector)?.focus({ preventScroll: true })
+    })
+  }
+
   const openInline = (type: InlineKind, id: string) => {
+    const active = document.activeElement
+    if (active instanceof HTMLElement && active !== document.body) returnFocus.current = active
     if (inline && (inline.type !== type || inline.id !== id)) setInlineStack([...inlineStack, inline])
     setInline({ type, id })
+    focusSoon('.assoc-inline .assoc-inline-head .top-icon')
   }
 
   const backInline = () => {
     if (!inlineStack.length) {
       setInline(null)
+      requestAnimationFrame(() => {
+        const target = returnFocus.current
+        const focus = target?.isConnected ? target : document.querySelector<HTMLElement>('.assoc-card[role="button"]')
+        focus?.focus({ preventScroll: true })
+        returnFocus.current = null
+      })
       return
     }
     setInline(inlineStack[inlineStack.length - 1])
     setInlineStack(inlineStack.slice(0, -1))
+    focusSoon('.assoc-inline .assoc-inline-head .top-icon')
   }
 
   const goFull = (type: InlineKind, id: string) => {
@@ -648,7 +665,17 @@ export default function AssociationPanel() {
         )}
         <div
           className={cx('assoc-card outline-mini', !outline && 'is-empty')}
+          role={outline ? 'button' : undefined}
+          tabIndex={outline ? 0 : undefined}
+          aria-label={outline ? `打开章纲：${outline.title}` : undefined}
           onClick={() => outline && openInline('outline', outline.id)}
+          onKeyDown={(event) => {
+            if (!outline) return
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault()
+              openInline('outline', outline.id)
+            }
+          }}
         >
           <div className="row gap-6" style={{ marginBottom: 4 }}>
             <FileText size={13} color="var(--jade)" />

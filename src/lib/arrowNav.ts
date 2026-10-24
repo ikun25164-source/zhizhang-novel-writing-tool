@@ -13,6 +13,7 @@ const FOCUSABLE = [
   '[role="option"]:not([aria-disabled="true"])',
   '[role="menuitem"]:not([aria-disabled="true"])',
   '[tabindex]:not([tabindex="-1"])',
+  'summary:not([aria-disabled="true"])',
   '[contenteditable="true"]',
 ].join(',')
 
