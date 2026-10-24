@@ -36,10 +36,26 @@ const isTextControl = (el: HTMLElement): boolean => {
   return false
 }
 
-const keepsVerticalArrows = (el: HTMLElement | null): boolean => {
+// 数字框到了 min / max 再按同一个方向，原生步进什么也不做——键就成了死键。
+// 只在还能步进时把上下键留给原生，顶到头就交还给方向键导航
+const canStep = (el: HTMLInputElement, dir: Arrow): boolean => {
+  const value = el.valueAsNumber
+  const step = el.step === '' || el.step === 'any' ? 1 : Number(el.step)
+  if (!Number.isFinite(value) || !Number.isFinite(step) || step <= 0) return true
+  const min = el.min === '' ? -Infinity : Number(el.min)
+  const max = el.max === '' ? Infinity : Number(el.max)
+  const next = value + (dir === 'ArrowUp' ? step : -step)
+  return next >= min && next <= max
+}
+
+const keepsVerticalArrows = (el: HTMLElement | null, dir: Arrow): boolean => {
   if (!el) return false
   if (el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') return true
-  if (el.tagName === 'INPUT') return SPIN_INPUTS.has(inputType(el))
+  if (el.tagName === 'INPUT') {
+    const type = inputType(el)
+    if (type === 'number') return canStep(el as HTMLInputElement, dir)
+    return SPIN_INPUTS.has(type)
+  }
   return el.isContentEditable
 }
 
@@ -47,7 +63,9 @@ const keepsVerticalArrows = (el: HTMLElement | null): boolean => {
 const keepsHorizontalArrows = (el: HTMLElement | null): boolean => {
   if (!el) return false
   if (el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') return true
-  if (el.tagName === 'INPUT') return !PLAIN_INPUTS.has(inputType(el))
+  // 数字框的 selectionStart 恒为 null，判断不出光标是否已到端点；左右键交给导航，
+  // 上下键仍保留原生步进
+  if (el.tagName === 'INPUT') return !PLAIN_INPUTS.has(inputType(el)) && inputType(el) !== 'number'
   return el.isContentEditable
 }
 
@@ -85,7 +103,16 @@ const editableEdgePoint = (el: HTMLElement, dir: Arrow): { x: number; y: number 
     const hit = dir === 'ArrowUp' ? caret.top - line.top < slack : line.bottom - caret.bottom < slack
     if (!hit) return null
   }
-  return { x: caret.left + caret.width / 2, y: caret.top + caret.height / 2 }
+  const point = { x: caret.left + caret.width / 2, y: caret.top + caret.height / 2 }
+  // 光标可能被滚出可视区（刚插入内容、或用脚本定位选区）：把起点夹回滚动视口内，
+  // 否则它跑到视口下方，按 ↓ 一个候选都找不到，焦点就困在正文里
+  const host = el.closest<HTMLElement>('.editor-scroll, .center-scroll, .panel-body')
+  const view = host?.getBoundingClientRect()
+  if (view && view.height > 8) {
+    point.x = Math.min(Math.max(point.x, view.left + 2), view.right - 2)
+    point.y = Math.min(Math.max(point.y, view.top + 2), view.bottom - 2)
+  }
+  return point
 }
 
 const isVisible = (el: HTMLElement): boolean => {
@@ -245,7 +272,15 @@ function bestInDirection(from: { x: number; y: number }, list: HTMLElement[], di
   // 先只看横（纵）向上真正压着当前控件的那一列（那一行），没有再退回更宽的搜索，
   // 否则按 ↓ 会被旁边同一水平线上的控件拐走
   const pool = scored.filter((s) => s.overlap)
-  const candidates = pool.length ? pool : scored
+  let candidates = pool.length ? pool : scored
+  // 上下键先收在最靠近的那一行里再比左右距离：
+  // 表单左右两栏的控件偏在一侧，按中心加权的分数会输给下一行又宽又居中的整行控件，
+  // 于是整行表单被跳过；同一行的控件纵向只差几像素，用 24px 的带装下
+  if (dir === 'ArrowUp' || dir === 'ArrowDown') {
+    const nearest = Math.min(...candidates.map((s) => s.primary))
+    const row = candidates.filter((s) => s.primary <= nearest + 24)
+    if (row.length) candidates = row
+  }
   let pick: HTMLElement | null = null
   let bestScore = Infinity
   for (const s of candidates) {
@@ -305,6 +340,13 @@ export function installArrowNav() {
     }
     if (el.isConnected) {
       remember(el)
+      // 激活可能让面板重排（列表项选中所致的详情插入、列表换用详情），
+      // 按下去之前的 scrollIntoView 就作废了，下一帧按新位置补一次，焦点别停在屏幕外
+      requestAnimationFrame(() => {
+        if (el.isConnected && document.activeElement === el) {
+          el.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+        }
+      })
       return
     }
     // 这一按把自己所在的列表换成了详情（或收起了抽屉）：焦点不能掉回 body，
@@ -355,7 +397,7 @@ export function installArrowNav() {
     let edgePoint: { x: number; y: number } | null = null
     if (isHomeEnd) {
       if (keepsHorizontalArrows(control)) return
-    } else if (control && (vertical ? keepsVerticalArrows(control) : keepsHorizontalArrows(control))) {
+    } else if (control && (vertical ? keepsVerticalArrows(control, dir) : keepsHorizontalArrows(control))) {
       if (vertical) {
         edgePoint = control.isContentEditable ? editableEdgePoint(control, dir) : null
         if (!edgePoint && !atInputEdge(control, dir)) {

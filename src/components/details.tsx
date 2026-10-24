@@ -441,7 +441,7 @@ export function EventDetail({ id }: { id: string }) {
   const timeFields = (
     <div className="col gap-8">
       {calendar.mode === 'date' && (
-        <div className="row gap-4">
+        <div className="row gap-4 date-fields">
           <Field label="年">
             <input
               className="input sm"
@@ -483,7 +483,7 @@ export function EventDetail({ id }: { id: string }) {
         </div>
       )}
       {calendar.mode === 'day' && (
-        <div className="row gap-4">
+        <div className="row gap-4 date-fields">
           <Field label="第几天">
             <input
               className="input sm"
@@ -616,7 +616,7 @@ export function EventDetail({ id }: { id: string }) {
       <div className="detail-card">
         <div className="detail-card-head">
           事件详情
-          <span className="small muted" style={{ letterSpacing: 0 }}>可用 @ 关联人物与地点</span>
+          <span className="small muted detail-card-hint" style={{ letterSpacing: 0 }}>可用 @ 关联人物与地点</span>
         </div>
         <MiniEditor
           doc={event.content}

@@ -988,6 +988,7 @@ button.chip:hover {
   border-right: 1px solid var(--line);
   position: relative;
   z-index: 2;
+  container: sidepanel / inline-size;
 }
 .side-panel.right-panel {
   width: min(var(--right-panel-width, 306px), 30vw);
@@ -1177,9 +1178,31 @@ body.is-resizing .side-panel {
   display: flex;
   align-items: center;
   gap: 7px;
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 .panel-title svg {
   color: var(--muted);
+}
+
+/* 侧栏宽度是用户拖出来的，按容器宽度收：最窄 230px 时日期徽标会把标题挤成两行，
+   年 / 月 / 日 / 时 四段输入也摆不进一行。 */
+@container sidepanel (max-width: 300px) {
+  .panel-head-date,
+  .detail-card-hint {
+    display: none;
+  }
+  .date-fields {
+    flex-wrap: wrap;
+  }
+  .date-fields > .field {
+    flex: 1 1 calc(50% - 4px);
+    min-width: 0;
+  }
+  .detail-wrap {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
 }
 .panel-actions {
   display: flex;
@@ -2088,6 +2111,7 @@ html[data-keyboard="open"] .side-panel .panel-foot {
   font-weight: 600;
   letter-spacing: 0.06em;
   color: var(--ink-2);
+  white-space: nowrap;
 }
 .detail-card-body {
   padding: 13px;
@@ -2479,6 +2503,11 @@ html[data-keyboard="open"] .side-panel .panel-foot {
   letter-spacing: 0.05em;
   background: var(--paper-2);
   user-select: none;
+  /* 环要跟着卡片的圆角走，否则聚焦时是一整条硬矩形 */
+  border-radius: calc(var(--radius) - 1px);
+}
+.detail-section[open] > summary {
+  border-radius: calc(var(--radius) - 1px) calc(var(--radius) - 1px) 0 0;
 }
 .detail-section > summary::-webkit-details-marker {
   display: none;
@@ -2692,12 +2721,19 @@ html[data-keyboard="open"] .side-panel .panel-foot {
     box-shadow: 0 0 0 9px transparent;
   }
 }
+/* 画布整块很大，2px 实描边圈住整张图太抢眼；换成很淡的内描边，状态主要落在底部提示条上 */
+html[data-ui="glass"] .map-stage {
+  /* 毛玻璃中心栏是圆角裁切，画布跟着圆角，内描边才不会在底角被切出黑弧 */
+  border-radius: 0 0 17px 17px;
+}
 .map-stage:focus-visible {
-  outline-offset: -3px;
+  outline: none;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 14%, transparent);
 }
 .map-stage:focus-visible .map-hint {
-  border-color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 36%, var(--line));
   color: var(--ink);
+  box-shadow: 0 2px 12px color-mix(in srgb, var(--ink) 8%, transparent);
 }
 .map-pin.active .pin-head {
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 30%, transparent);

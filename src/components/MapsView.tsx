@@ -56,6 +56,8 @@ function MapCanvas({
   const moved = useRef(false)
   const zoomRef = useRef(zoom)
   zoomRef.current = zoom
+  const panRef = useRef(pan)
+  panRef.current = pan
 
   const baseScale = size.w && size.h && map.width && map.height
     ? Math.min(size.w / map.width, size.h / map.height) * 0.94
@@ -63,6 +65,19 @@ function MapCanvas({
   const worldW = map.width * baseScale
   const worldH = map.height * baseScale
   const placeList = places.filter((place) => place.mapId === map.id)
+
+  // 平移不设边界时能把地图整张推出画布，只剩一块空白和一圈焦点环。
+  // 每个方向都留一部分图露在视口里：画布大就留视口的 35%，缩小后至少留图的一半
+  const clampPan = (x: number, y: number, z = zoomRef.current) => {
+    const w = worldW * z
+    const h = worldH * z
+    const keepX = Math.min(size.w * 0.35, Math.max(64, w * 0.5))
+    const keepY = Math.min(size.h * 0.35, Math.max(64, h * 0.5))
+    return {
+      x: clamp(x, keepX - w, size.w - keepX),
+      y: clamp(y, keepY - h, size.h - keepY),
+    }
+  }
 
   useEffect(() => {
     const stage = stageRef.current
@@ -88,10 +103,13 @@ function MapCanvas({
     const k = clamp(next, 0.35, 5)
     const px = clientX - rect.left
     const py = clientY - rect.top
-    setPan((current) => ({
-      x: px - ((px - current.x) / zoomRef.current) * k,
-      y: py - ((py - current.y) / zoomRef.current) * k,
-    }))
+    setPan((current) =>
+      clampPan(
+        px - ((px - current.x) / zoomRef.current) * k,
+        py - ((py - current.y) / zoomRef.current) * k,
+        k,
+      ),
+    )
     setZoom(k)
   }
 
@@ -185,10 +203,13 @@ function MapCanvas({
       const k = clamp((gesture.current.startZoom * dist) / gesture.current.startDist, 0.35, 5)
       const startPan = gesture.current.startPan
       const startMid = gesture.current.startMid
-      setPan({
-        x: mid.x - rect.left - ((startMid.x - rect.left - startPan.x) * k) / gesture.current.startZoom,
-        y: mid.y - rect.top - ((startMid.y - rect.top - startPan.y) * k) / gesture.current.startZoom,
-      })
+      setPan(
+        clampPan(
+          mid.x - rect.left - ((startMid.x - rect.left - startPan.x) * k) / gesture.current.startZoom,
+          mid.y - rect.top - ((startMid.y - rect.top - startPan.y) * k) / gesture.current.startZoom,
+          k,
+        ),
+      )
       setZoom(k)
       moved.current = true
       return
@@ -198,7 +219,7 @@ function MapCanvas({
       const dx = event.clientX - gesture.current.startX
       const dy = event.clientY - gesture.current.startY
       if (Math.abs(dx) + Math.abs(dy) > 4) moved.current = true
-      setPan({ x: gesture.current.startPan.x + dx, y: gesture.current.startPan.y + dy })
+      setPan(clampPan(gesture.current.startPan.x + dx, gesture.current.startPan.y + dy))
     }
   }
 
@@ -281,13 +302,14 @@ function MapCanvas({
             return
           }
           if (!panning) return
-          event.preventDefault()
           // Shift + 上下 = 缩放（按住方向键会连发，缩放和平移都能一路推到底）
           if (zooming) {
+            event.preventDefault()
             centerZoom(event.key === 'ArrowUp' ? 0.12 : -0.12)
             return
           }
           if (addMode && ghost) {
+            event.preventDefault()
             const step = event.shiftKey ? 4 : 1.2
             const dx = event.key === 'ArrowRight' ? step : event.key === 'ArrowLeft' ? -step : 0
             const dy = event.key === 'ArrowDown' ? step : event.key === 'ArrowUp' ? -step : 0
@@ -302,7 +324,16 @@ function MapCanvas({
             ArrowDown: [0, -step],
           }
           const [dx, dy] = move[event.key]
-          setPan((current) => ({ x: current.x + dx, y: current.y + dy }))
+          const current = panRef.current
+          const next = clampPan(current.x + dx, current.y + dy)
+          if (next.x === current.x && next.y === current.y) {
+            // 已经顶到画布边界：这一下方向键不再吞掉，交给全站导航把焦点带出去。
+            // 长按连发只拦下,免得焦点一口气连跳好几格
+            if (event.repeat) event.preventDefault()
+            return
+          }
+          event.preventDefault()
+          setPan(next)
         }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}

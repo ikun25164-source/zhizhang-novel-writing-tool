@@ -401,7 +401,7 @@ export default function TimelineView() {
             <CalendarDays size={14} /> 事件详情
           </div>
           <div className="row gap-6">
-            {selectedEvent && <span className="badge">{formatEventTime(selectedEvent.time, calendar)}</span>}
+            {selectedEvent && <span className="badge panel-head-date">{formatEventTime(selectedEvent.time, calendar)}</span>}
             <button className="top-icon panel-collapse" title="收起侧栏" onClick={closeRight}>
               <PanelRightClose size={14} />
             </button>
