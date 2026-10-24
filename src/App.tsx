@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useApp } from './store'
 import type { ViewName } from './types'
 import { installArrowNav } from './lib/arrowNav'
+import { installSoftKeyboardGuard } from './lib/softKeyboard'
 import AppShell from './components/AppShell'
 import ProjectPicker from './components/ProjectPicker'
 
@@ -18,6 +19,7 @@ export default function App() {
   }, [])
 
   useEffect(() => installArrowNav(), [])
+  useEffect(() => installSoftKeyboardGuard(), [])
 
   useEffect(() => {
     const root = document.documentElement

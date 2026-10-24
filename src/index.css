@@ -491,8 +491,15 @@ textarea:focus-visible {
   height: 100%;
   font-size: 13px;
 }
+/* 输入框本身是方的，套在圆角搜索框里画默认焦点环会切出一个硬邦邦的矩形，
+   焦点环交给外框来画，圆角才连续 */
+.search-box input:focus,
+.search-box input:focus-visible {
+  outline: none;
+}
 .search-box:focus-within {
   border-color: color-mix(in srgb, var(--accent) 50%, var(--line));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 /* ---------- surfaces ---------- */
